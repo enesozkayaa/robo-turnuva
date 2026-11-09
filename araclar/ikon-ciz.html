@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<!--
+  Robo Turnuva - uygulama simgesini çizer. Adres sonuna ?boyut=512&pay=0.08 yazılır.
+  PNG'ye çevirmek için (Edge görünmez modda ekran görüntüsü alır):
+    msedge --headless --hide-scrollbars --window-size=512,512 --screenshot=ikonlar/ikon-512.png "file:///.../araclar/ikon-ciz.html?boyut=512&pay=0.08"
+-->
+<html>
+<head>
+<meta charset="UTF-8">
+<style>html, body { margin: 0; background: #04030c; overflow: hidden; } canvas { display: block; }</style>
+</head>
+<body>
+<script>
+  const ayar = new URLSearchParams(location.search);
+  const boyut = +(ayar.get('boyut') || 512);
+  const pay = +(ayar.get('pay') || 0.08);
+  const c = document.createElement('canvas');
+  c.width = c.height = boyut;
+  document.body.appendChild(c);
+  const g = c.getContext('2d');
+  g.scale(boyut / 512, boyut / 512);
+
+  // Uzay arka planı
+  const arka = g.createRadialGradient(256, 230, 20, 256, 256, 360);
+  arka.addColorStop(0, '#2a1a5e'); arka.addColorStop(0.6, '#0b0822'); arka.addColorStop(1, '#04030c');
+  g.fillStyle = arka; g.fillRect(0, 0, 512, 512);
+  let tohum = 7;
+  const rnd = () => ((tohum = (tohum * 16807) % 2147483647) / 2147483647);
+  for (let i = 0; i < 90; i++) { g.fillStyle = `rgba(255,255,255,${0.3 + rnd() * 0.7})`; g.beginPath(); g.arc(rnd() * 512, rnd() * 512, rnd() * 1.8, 0, 7); g.fill(); }
+
+  g.save();
+  const k = 1 - pay;
+  g.translate(256, 256); g.scale(k, k); g.translate(-256, -256);
+
+  // Altıgen kafes
+  const altigen = (r, cx = 256, cy = 300) => { g.beginPath(); for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; g[i ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.55); } g.closePath(); };
+  g.lineWidth = 6; g.strokeStyle = '#2ee6ff'; g.shadowColor = '#2ee6ff'; g.shadowBlur = 20;
+  altigen(220); g.stroke();
+  g.lineWidth = 3; g.globalAlpha = 0.5; altigen(150); g.stroke(); altigen(80); g.stroke(); g.globalAlpha = 1;
+
+  // Lazer ışını (pembe, çapraz)
+  g.shadowColor = '#ff3b8d'; g.shadowBlur = 30;
+  g.strokeStyle = '#ff3b8d'; g.lineWidth = 16; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(300, 250); g.lineTo(500, 150); g.stroke();
+  g.strokeStyle = '#fff'; g.lineWidth = 6;
+  g.beginPath(); g.moveTo(300, 250); g.lineTo(500, 150); g.stroke();
+  g.shadowBlur = 0;
+
+  // Robot
+  const govde = g.createLinearGradient(170, 200, 340, 380);
+  govde.addColorStop(0, '#ffffff'); govde.addColorStop(1, '#9aa3c7');
+  // taban parıltısı
+  const p = g.createRadialGradient(256, 400, 5, 256, 400, 110);
+  p.addColorStop(0, 'rgba(46,230,255,0.9)'); p.addColorStop(1, 'rgba(46,230,255,0)');
+  g.fillStyle = p; g.beginPath(); g.ellipse(256, 400, 120, 40, 0, 0, 7); g.fill();
+  // gövde
+  g.fillStyle = govde;
+  g.beginPath(); g.roundRect(186, 250, 140, 140, 60); g.fill();
+  g.fillStyle = '#2ee6ff'; g.fillRect(186, 300, 140, 20);
+  // kafa
+  g.fillStyle = govde; g.beginPath(); g.arc(256, 190, 78, 0, 7); g.fill();
+  // vizör
+  g.fillStyle = '#0b0822'; g.beginPath(); g.roundRect(196, 160, 120, 52, 26); g.fill();
+  g.shadowColor = '#2ee6ff'; g.shadowBlur = 25; g.fillStyle = '#2ee6ff';
+  g.beginPath(); g.arc(232, 186, 13, 0, 7); g.arc(282, 186, 13, 0, 7); g.fill();
+  // anten
+  g.shadowBlur = 0; g.strokeStyle = '#9aa3c7'; g.lineWidth = 7;
+  g.beginPath(); g.moveTo(256, 112); g.lineTo(256, 78); g.stroke();
+  g.shadowColor = '#ff3b8d'; g.shadowBlur = 25; g.fillStyle = '#ff3b8d';
+  g.beginPath(); g.arc(256, 72, 14, 0, 7); g.fill();
+  // lazer silahı
+  g.shadowBlur = 0; g.fillStyle = '#23263a';
+  g.save(); g.translate(300, 262); g.rotate(-0.46); g.beginPath(); g.roundRect(-10, -16, 80, 32, 10); g.fill();
+  g.shadowColor = '#ff3b8d'; g.shadowBlur = 20; g.fillStyle = '#ff3b8d'; g.beginPath(); g.arc(70, 0, 11, 0, 7); g.fill(); g.restore();
+  g.restore();
+</script>
+</body>
+</html>

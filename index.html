@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#04030c">
+  <title>Robo Turnuva</title>
+  <meta name="description" content="Uzayda robot mini oyunları. Görünmez Lazer ve daha fazlası.">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="ikonlar/ikon-192.png">
+  <link rel="apple-touch-icon" href="ikonlar/ikon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Robo Turnuva">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="sahne"></div>
+  <div id="perdeRenk"></div>
+  <div id="dokunmaAlani" hidden></div>
+
+  <!-- Oyun sırasında ekran bilgileri -->
+  <header id="oyuncular" hidden></header>
+  <div id="buyuk" hidden><div id="buyukYazi"></div><div id="sayac"></div></div>
+  <div id="bilgi" hidden></div>
+  <div id="ipucu" hidden></div>
+  <button id="menuBtn" class="koseBtn" title="Oyun salonuna dön" hidden>🏠</button>
+  <button id="sesBtn" class="koseBtn" title="Sesi aç/kapat">🔊</button>
+
+  <!-- Oyun salonu -->
+  <section id="salon" class="ekran">
+    <div class="kart genis">
+      <h1>ROBO<br>TURNUVA</h1>
+      <p class="altBaslik">Uzay istasyonunda robot mini oyunları</p>
+
+      <div class="ayarlar">
+        <label class="ayar">
+          <span>🤖 Robotunun adı</span>
+          <input id="adim" class="giris" maxlength="10" placeholder="Adın" autocomplete="off">
+        </label>
+        <div class="ayar">
+          <span>👾 Rakip robot sayısı</span>
+          <div id="botSayisi" class="secenekler"></div>
+        </div>
+      </div>
+
+      <h3>🎮 Mini oyunlar</h3>
+      <div id="oyunListesi"></div>
+      <p class="not">🌐 Arkadaşlarla online oynama yakında geliyor.</p>
+      <p id="surumNotu" class="surum"></p>
+    </div>
+  </section>
+
+  <section id="cikisEkrani" class="ekran" hidden>
+    <div class="kart">
+      <h2>🏠 Oyun salonuna dön</h2>
+      <p>Bu oyun bitecek. Emin misin?</p>
+      <div class="ikiDugme">
+        <button id="cikisHayir" class="ikinci">Hayır, devam</button>
+        <button id="cikisEvet">Evet, çık</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="sonuc" class="ekran" hidden>
+    <div class="kart">
+      <h2 id="sonucBaslik"></h2>
+      <p id="sonucAciklama"></p>
+      <ol id="siralama"></ol>
+      <div class="ikiDugme">
+        <button id="salonaBtn" class="ikinci">🏠 Salon</button>
+        <button id="tekrarBtn">🔁 Tekrar oyna</button>
+      </div>
+    </div>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.159.0/build/three.min.js"></script>
+  <script src="ses.js"></script>
+  <script src="cekirdek.js"></script>
+  <script src="kontrol.js"></script>
+  <script src="salon.js"></script>
+  <!-- Mini oyunlar: yeni oyun = oyunlar/ klasörüne dosya + buraya bir satır -->
+  <script src="oyunlar/lazer-motor.js"></script>
+  <script src="oyunlar/lazer.js"></script>
+  <script>Salon.baslat();</script>
+  <script>
+    // Servis çalışanı: telefona kurulum ve otomatik güncelleme (yeni sürüm gelince salondayken sayfa yenilenir)
+    if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+      const eskiKontrol = navigator.serviceWorker.controller;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (eskiKontrol && !Salon.oyunda) location.reload();
+      });
+      navigator.serviceWorker.register('sw.js');
+    }
+  </script>
+  <script>
+    // iPhone: ekran büyüyüp takılı kalmasın. Klavye kapanınca ya da telefon dönünce
+    // yakınlaştırma sıfırlanır; iki parmakla büyütme kapalı.
+    (function () {
+      var m = document.querySelector('meta[name=viewport]');
+      var ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      if (!m || !ios) return;
+      var asil = m.getAttribute('content');
+      function sifirla() {
+        m.setAttribute('content', 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no');
+        setTimeout(function () { m.setAttribute('content', asil); }, 400);
+      }
+      document.addEventListener('focusout', function (e) { if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) setTimeout(sifirla, 50); });
+      window.addEventListener('orientationchange', function () { setTimeout(sifirla, 300); });
+      ['gesturestart', 'gesturechange'].forEach(function (t) { document.addEventListener(t, function (e) { e.preventDefault(); }, { passive: false }); });
+    })();
+  </script>
+</body>
+</html>

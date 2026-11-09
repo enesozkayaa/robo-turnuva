@@ -1,0 +1,19 @@
+{
+  "name": "Robo Turnuva",
+  "short_name": "Robo Turnuva",
+  "description": "Uzayda robot mini oyunları. Görünmez Lazer ve daha fazlası.",
+  "lang": "tr",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#04030c",
+  "theme_color": "#04030c",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "ikonlar/ikon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "ikonlar/ikon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "ikonlar/ikon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
