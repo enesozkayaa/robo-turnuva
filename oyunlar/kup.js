@@ -65,7 +65,7 @@
     kurallar: [
       'Ortada 3×3×3 bir küp var (27 küçük küp). Her turda örnek önce tam görünür, sonra <b>birkaç küp birden fırlayıp çıkar</b>.',
       `Örneği <b>${GOSTER_SN} saniye</b> ezberle. Sonra örnek kaybolur ve <b>${KUR_SN} saniyede</b> kendi küpünde aynı küpleri sil.`,
-      'Silmek için küpe <b>tıkla / dokun</b>. Yanlış sildiysen soluk hayalet küpe tıkla, geri gelir. <b>Sürükleyerek</b> küpü çevirebilirsin.',
+      'Silmek için küpe <b>tıkla / dokun</b>. Yanlış sildiysen soluk hayalet küpe tıkla, geri gelir. <b>Sürükleyerek</b> küpü sağa-sola ve yukarı-aşağı çevirebilirsin.',
       'Süre bitince küpün örnekle aynı değilse yukarıdan inen <b>lazer taret</b> seni vurur!',
       `Eksik sayısı her tur artar: <b>${ILK_EKSIK} → ${ILK_EKSIK + 1} → ${ILK_EKSIK + 2}…</b> Herkes yanılırsa kimse ölmez. Son kalan kazanır.`,
     ],
@@ -122,7 +122,8 @@
     benim.g.position.y = MERKEZ_Y;
     benim.g.visible = false;
     grup.add(ornek.g, benim.g);
-    let donus = -0.55, hedefDonus = -0.55, miniKupler = [];   // küpün y ekseninde dönüşü (üç yüz görünsün)
+    let donus = -0.55, hedefDonus = -0.55, miniKupler = [];
+    let egim = 0, hedefEgim = 0;   // yukarı-aşağı döndürme   // küpün y ekseninde dönüşü (üç yüz görünsün)
 
     // ---------- Durum ----------
     let faz = 'bekle', fazBitis = 0, turNo = 0, hedef = [], benimEksik = [], bitirdim = false, durdu = false, sonSn = null;
@@ -156,12 +157,15 @@
     let basili = null;
     const alan = Cekirdek.tuval;
     const ekranNoktasi = e => { const r = alan.getBoundingClientRect(); return { x: ((e.clientX - r.left) / r.width) * 2 - 1, y: -((e.clientY - r.top) / r.height) * 2 + 1 }; };
-    const bas = e => { if (e.target !== alan) return; basili = { x: e.clientX, y: e.clientY, d0: hedefDonus, surukle: false }; };
+    const bas = e => { if (e.target !== alan) return; basili = { x: e.clientX, y: e.clientY, d0: hedefDonus, e0: hedefEgim, surukle: false }; };
     const surukle = e => {
       if (!basili) return;
-      const dx = e.clientX - basili.x;
-      if (Math.abs(dx) > 8) basili.surukle = true;
-      if (basili.surukle) hedefDonus = basili.d0 + dx * 0.012;
+      const dx = e.clientX - basili.x, dy = e.clientY - basili.y;
+      if (Math.hypot(dx, dy) > 8) basili.surukle = true;
+      if (basili.surukle) {
+        hedefDonus = basili.d0 + dx * 0.012;
+        hedefEgim = Math.max(-1.3, Math.min(1.3, basili.e0 + dy * 0.012));   // yukarı-aşağı (altı da görülebilsin)
+      }
     };
     const birak = e => {
       if (!basili) return;
@@ -195,7 +199,7 @@
       turNo = m.no; hedef = m.eksik; benimEksik = []; bitirdim = false; gecmis.length = 0;
       miniKupler.forEach(k => grup.remove(k.g)); miniKupler = [];
       faz = 'goster';
-      hedefDonus = -0.55;
+      hedefDonus = -0.55; hedefEgim = 0;
       ornek.g.visible = true; benim.g.visible = false;
       // Önce tam küp; sonra eksilecek parçalar birden fırlayıp kaybolur, ezberleme o an başlar
       fazBitis = simdi() + TAM_SN + GOSTER_SN;
@@ -227,7 +231,7 @@
     }
     function kurBasla() {
       faz = 'kur'; fazBitis = simdi() + KUR_SN;
-      hedefDonus = -0.55;
+      hedefDonus = -0.55; hedefEgim = 0;
       ornek.g.visible = false;
       benim.g.visible = ben.canli;
       benim.ciz([], true);
@@ -409,8 +413,10 @@
     const kaldir = Cekirdek.guncelle((dt, t) => {
       if (durdu) return false;
       donus += (hedefDonus - donus) * Math.min(1, dt * 8);
+      egim += (hedefEgim - egim) * Math.min(1, dt * 8);
       ornek.g.rotation.y = benim.g.rotation.y = donus;
-      miniKupler.forEach(k => { k.g.rotation.y = donus; });
+      ornek.g.rotation.x = benim.g.rotation.x = egim;
+      miniKupler.forEach(k => { k.g.rotation.y = donus; k.g.rotation.x = egim; });
       ornek.g.position.y = benim.g.position.y = MERKEZ_Y + Math.sin(t * 1.5) * 0.05;
       if (faz === 'goster' && simdi() >= fazBitis) kurBasla();
       if (faz === 'goster' || faz === 'kur') {
