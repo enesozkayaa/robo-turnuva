@@ -101,7 +101,7 @@
     kurallar: [
       'Kolonlu bir odadasınız. Herkesin silahı <b>kendiliğinden</b> ateş eder; sen yürür ve nişan alırsın.',
       'Kurşunlar <b>ağır çekimde</b> gelir: gördüğün kurşundan kenara çekil ya da kolonun arkasına saklan. Kurşun kolonda ve duvarda durur.',
-      'Zaman geçtikçe kurşunlar <b>hızlanır</b> (sağ üstte hızı görürsün).',
+      'Her <b>5 saniyede</b> bir kurşunlar <b>1,6 kat hızlanır</b> (üstte hızı görürsün). Yerdeki kurşunlar da hızlanır!',
       'Herkesin <b>3 canı</b> var. Vurulunca 1 can gider ve kısa süre yanıp sönersin (o sırada kurşun işlemez). Canı biten elenir.',
       'Bilgisayar: <b>WASD / ok tuşları</b> yürü, <b>fare</b> nişan. Telefon: <b>sol</b> joystick yürü, <b>sağ</b> joystick nişan.',
       'Ayakta kalan son robot kazanır.',
@@ -127,7 +127,7 @@
     const KURSUN = new Map();   // kurşun no → nesne
     Cekirdek.kameraAyarla(M.ODA.w + 0.8, 1.02);
 
-    let durdu = false, birikim = 0, sonSaniye = null, bittiMi = false;
+    let durdu = false, birikim = 0, sonSaniye = null, bittiMi = false, sonBasamak = 0;
     const ben = d.oyuncular.find(o => o.id === b.benId);
     let benA = ben.a;
 
@@ -201,6 +201,12 @@
       } else if (!bittiMi) {
         if (sonSaniye !== 0) { sonSaniye = 0; Ses.bip(true); b.hud.buyuk('⏳ BAŞLA!', '', 'ates'); }
         else if (d.t > 1) {
+          const bas = M.hizBasamagi(d.t);
+          if (bas !== sonBasamak) {
+            sonBasamak = bas;
+            Ses.uyari();
+            b.hud.bilgi(`⚡ KURŞUNLAR HIZLANDI! x${M.hizKati(d.t).toFixed(1)}`, true);
+          }
           const s = Math.floor(d.t);
           b.hud.buyuk(`⏱ ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}  ·  Kurşun hızı x${M.hizKati(d.t).toFixed(1)}`, '', '', false);
         }

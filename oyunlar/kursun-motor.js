@@ -15,8 +15,10 @@ const KursunMotor = (() => {
   const CAN = 3, KORUMA = 1.2;                         // vurulunca kısa süre dokunulmaz
   const BASLANGIC = 3;                                 // "hazır" geri sayımı (sn)
 
-  // Kurşun hızı: yavaş başlar, her saniye artar (Matrix'ten gerçeğe)
-  const kursunHizi = t => Math.min(12, 3.2 + t * 0.09);
+  // Kurşun hızı: yavaş başlar, her 5 saniyede bir 1,6 katına çıkar (en fazla EN_HIZLI)
+  const HIZLANMA_SN = 5, HIZLANMA_KAT = 1.6, ILK_HIZ = 3.2, EN_HIZLI = 22;
+  const hizBasamagi = t => Math.max(0, Math.floor(t / HIZLANMA_SN));
+  const kursunHizi = t => Math.min(EN_HIZLI, ILK_HIZ * Math.pow(HIZLANMA_KAT, hizBasamagi(t)));
   const atesAraligi = t => Math.max(0.7, 1.15 - t * 0.006);
   const hizKati = t => kursunHizi(t) / kursunHizi(0);
 
@@ -167,7 +169,7 @@ const KursunMotor = (() => {
     return { hx: dx / L * 0.8, hz: dz / L * 0.8, a };
   }
 
-  return { ODA, KOLON_R, KOLONLAR, ROBOT_R, KURSUN_R, HIZ, CAN, BASLANGIC, kursunHizi, atesAraligi, hizKati, yeni, adim, botGirdi, canlilar };
+  return { ODA, KOLON_R, KOLONLAR, ROBOT_R, KURSUN_R, HIZ, CAN, BASLANGIC, kursunHizi, atesAraligi, hizKati, hizBasamagi, yeni, adim, botGirdi, canlilar };
 })();
 
 if (typeof module !== 'undefined') module.exports = KursunMotor;
