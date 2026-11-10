@@ -5,7 +5,8 @@
 //
 // Yeni mini oyun eklemek için:
 //   Salon.oyunEkle({ id, ad, ikon, ozet, kurallar: [...], baslat(b) { ...; return { durdur(), koptu?(id) } } })
-// b = { oyuncular: [{ id, ad, renk, bot }], benId, hud, kanal, bitti({ kazanan, siralama: [{ id, neden }], aciklama? }) }
+// b = { oyuncular: [{ id, ad, renk, bot }], benId, hud, kanal, ayar, bitti({ kazanan, siralama: [{ id, neden }], aciklama? }) }
+// Oyunun açılışta seçilen ayarları olabilir: ayarlar: [{ id, ad, secenekler: [..], varsayilan }] → b.ayar[id]
 //
 // kanal: her mini oyun hem tek başına hem online aynı kodla çalışsın diye.
 //   kanal.evMi      → oyunun kurallarını bu cihaz mı yürütüyor? (tek başına ya da oda sahibi)
@@ -29,6 +30,11 @@ const Salon = (() => {
   const $ = id => document.getElementById(id);
 
   function oyunEkle(o) { oyunlar.push(o); }
+  // Oyunun seçili ayarları (kayıtlı değilse varsayılan)
+  function oyunAyari(o) {
+    const kayitli = ayar.oyun?.[o.id] || {};
+    return Object.fromEntries((o.ayarlar || []).map(a => [a.id, a.secenekler.includes(kayitli[a.id]) ? kayitli[a.id] : a.varsayilan]));
+  }
   function kaydet() { try { localStorage.setItem(ANAHTAR, JSON.stringify(ayar)); } catch (e) { /* */ } }
   const online = () => Ag.mod !== 'yerel';
 
@@ -46,6 +52,14 @@ const Salon = (() => {
       else { ayar.bot = +n; kaydet(); menuCiz(); }
     });
     $('oyunListesi').addEventListener('click', e => {
+      const s = e.target.closest('[data-oayar]');
+      if (s) {
+        const [oyunId, anahtar] = s.dataset.oayar.split('.');
+        ayar.oyun ??= {};
+        ayar.oyun[oyunId] = { ...(ayar.oyun[oyunId] || {}), [anahtar]: +s.dataset.deger };
+        kaydet(); menuCiz();
+        return;
+      }
       const b = e.target.closest('[data-oyna]');
       if (b) oyunBaslat(b.dataset.oyna);
     });
@@ -109,6 +123,7 @@ const Salon = (() => {
         <div class="ikon">${o.ikon}</div>
         <div><b>${o.ad}</b><p>${o.ozet}</p></div>
         ${misafir ? `<span class="bekle">${oyunda ? 'Oynanıyor…' : 'Oda sahibi seçer'}</span>` : `<button data-oyna="${o.id}">▶ Oyna</button>`}
+        ${misafir ? '' : (o.ayarlar || []).map(a => `<div class="oyunAyar"><span>${a.ad}</span>${a.secenekler.map(v => `<button data-oayar="${o.id}.${a.id}" data-deger="${v}" class="${oyunAyari(o)[a.id] === v ? 'secili' : ''}">${v}</button>`).join('')}</div>`).join('')}
         <details><summary>Nasıl oynanır?</summary><ol>${o.kurallar.map(k => `<li>${k}</li>`).join('')}</ol></details>
       </div>`).join('') + `
       <div class="miniOyun yakinda"><div class="ikon">❔</div><div><b>Yeni mini oyunlar</b><p>Yakında bu salona eklenecek.</p></div><span></span></div>`;
@@ -140,7 +155,7 @@ const Salon = (() => {
       onlineCiz(); menuCiz();
       return;
     }
-    if (tip === 'basla') { oyunuAc(veri.oyun, veri.oyuncular, veri.benId, 'misafir'); return; }
+    if (tip === 'basla') { oyunuAc(veri.oyun, veri.oyuncular, veri.benId, 'misafir', veri.ayar || {}); return; }
     if (tip === 'salon') { if (calisan || !$('sonuc').hidden) salonaDon(); return; }
     if (tip === 'mesaj') { kanal?._gelen(veri); return; }
     if (tip === 'evMesaj') { kanal?._evGelen(veri.v, veri.id); return; }
@@ -186,17 +201,17 @@ const Salon = (() => {
         oyuncular.push({ id: n, ad: adlar[i], renk: RENKLER[n], bot: true });
       }
       if (oyuncular.length < 2) { $('onlineDurum').textContent = '❗ Oynamak için en az 2 kişi lazım: arkadaşını bekle ya da robot ekle.'; return; }
-      Ag.oyunuBaslat(id, oyuncular);
+      Ag.oyunuBaslat(id, oyuncular, oyunAyari(oyun));
     } else {
       if (!ayar.ad) sars('adim');
       oyuncular = [{ id: 0, ad: ayar.ad || 'Sen', renk: RENKLER[0], bot: false }];
       for (let i = 0; i < ayar.bot; i++) oyuncular.push({ id: i + 1, ad: adlar[i], renk: RENKLER[i + 1], bot: true });
     }
-    oyunuAc(id, oyuncular, 0, Ag.mod);
+    oyunuAc(id, oyuncular, 0, Ag.mod, oyunAyari(oyun));
   }
 
   let calisanOyuncular = null;
-  function oyunuAc(id, oyuncular, benId, mod) {
+  function oyunuAc(id, oyuncular, benId, mod, oyunAyar = {}) {
     const oyun = oyunlar.find(o => o.id === id);
     if (!oyun) return;
     durdur();
@@ -210,7 +225,7 @@ const Salon = (() => {
     Ses.ortam(true);
     Kontrol.ac(true);
     kanal = kanalYap(mod, benId);
-    calisan = oyun.baslat({ oyuncular, benId, hud: Hud, kanal, bitti: sonuc => oyunBitti(oyuncular, benId, sonuc) });
+    calisan = oyun.baslat({ oyuncular, benId, hud: Hud, kanal, ayar: { ...oyunAyari(oyun), ...oyunAyar }, bitti: sonuc => oyunBitti(oyuncular, benId, sonuc) });
   }
 
   function kanalYap(mod, benId) {

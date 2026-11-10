@@ -17,7 +17,7 @@
     { id: 'yari', ad: '⏳ İlk 3 saniye görünür', aciklama: 'Yelkovan 3 saniye sonra kaybolacak. Sonrasını kafandan say!', sapma: 0.32 },
     { id: 'kor', ad: '🙈 Kör mod', aciklama: 'Yelkovan hiç görünmez. 3-2-1 sonra içinden say!', sapma: 0.65 },
   ];
-  const HER_MOD = 3, TUR = MODLAR.length * HER_MOD;
+  const HER_MOD_SECENEK = [1, 2, 3, 4, 5];   // her moddan kaç tur (açılışta seçilir)
   const TUR_SN = 20;              // yelkovanın bir tam turu (sn)
   const GORUNUR_SN = 3;           // yarı modda yelkovan kaç saniye görünür
   const HAZIR_SN = 2.6, SAYIM = 3, EN_UZUN = 30;
@@ -39,7 +39,6 @@
       <circle cx="100" cy="100" r="97" class="kasa"/>
       <circle cx="100" cy="100" r="92" class="yuz"/>
       <g class="cizgiler">${cizgi}</g><g class="sayilar">${sayi}</g>
-      <line id="zmHedef" x1="100" y1="100" x2="100" y2="14" class="hedefCizgi"/>
       <g id="zmIzler"></g>
       <g id="zmYelkovan"><line x1="100" y1="112" x2="100" y2="16" class="yelkovan"/><circle cx="100" cy="16" r="3.5" class="uc"/></g>
       <circle cx="100" cy="100" r="6" class="gobek"/>
@@ -53,17 +52,20 @@
     ikon: '⏱️',
     ozet: 'Ekrana bir süre çıkar. Saati tam o anda durdur! Yelkovan gittikçe kaybolur.',
     kurallar: [
-      'Her turda <b>5 ile 15 saniye</b> arası rastgele bir süre çıkar (ör. <b>6.53</b>).',
+      'Her turda rastgele bir süre çıkar (ör. <b>6.53</b>): yelkovan görünür modda <b>1 ile 15</b>, diğer modlarda <b>5 ile 15 saniye</b> arası.',
       '3-2-1 (dın, dın, dın) sonra saat başlar. Süreye en yakın anda <b>⏹ DURDUR</b>\'a bas (bilgisayarda <b>boşluk</b> tuşu da olur).',
-      `Modlar sırayla gelir, her biri ${HER_MOD} tur: <b>1)</b> yelkovan görünür, <b>2)</b> yelkovan ilk 3 saniye görünür sonra kaybolur, <b>3)</b> kör mod: yelkovan hiç görünmez.`,
+      'Her moddan kaç tur oynanacağını açılışta seçersin (1-5). Modlar sırayla gelir: <b>1)</b> yelkovan görünür, <b>2)</b> yelkovan ilk 3 saniye görünür sonra kaybolur, <b>3)</b> kör mod: yelkovan hiç görünmez.',
       'Her turda en yakın olan <b>3</b>, ikinci <b>2</b>, üçüncü <b>1</b> puan alır.',
-      `${TUR} tur sonunda en çok puanı toplayan kazanır.`,
+      'Son turun sonunda en çok puanı toplayan kazanır.',
     ],
+    ayarlar: [{ id: 'tur', ad: 'Her moddan kaç tur?', secenekler: HER_MOD_SECENEK, varsayilan: 3 }],
     baslat,
   });
 
   function baslat(b) {
     const { kanal } = b;
+    const HER_MOD = HER_MOD_SECENEK.includes(+b.ayar?.tur) ? +b.ayar.tur : 3;
+    const TUR = MODLAR.length * HER_MOD;
     Kontrol.ac(false);   // bu oyunda joystick yok
     Cekirdek.kameraAyarla(9, 0.5);
 
@@ -114,8 +116,6 @@
       $('zmTur').textContent = `Tur ${m.no}/${TUR}`;
       $('zmMod').textContent = mod.ad;
       $('zmHedefSn').textContent = m.hedef.toFixed(2);
-      $('zmHedef').setAttribute('transform', `rotate(${yelkovanAci(m.hedef)} 100 100)`);
-      $('zmHedef').style.opacity = m.mod === 'kor' ? 0 : 1;   // kör modda hedef çizgisi de yok
       $('zmIzler').innerHTML = '';
       $('zmKor').style.opacity = m.mod === 'kor' ? 1 : 0;
       $('zmSonuc').hidden = true;
@@ -166,7 +166,6 @@
       $('zmDur').disabled = true;
       // Yelkovan hedefi göstersin, herkesin durduğu yer kadranda renkli çizgi
       yelkovan(m.hedef, true);
-      $('zmHedef').style.opacity = 1;
       $('zmKor').style.opacity = 0;
       $('zmIzler').innerHTML = m.liste.filter(s => s.sure !== null).map(s => {
         const o = b.oyuncular.find(p => p.id === s.id);
@@ -223,7 +222,9 @@
         ev.no++;
         const mod = MODLAR[Math.floor((ev.no - 1) / HER_MOD)].id;
         // 5.00 - 15.00 arası, iki basamak
-        const hedef = Math.round((5 + Math.random() * 10) * 100) / 100;
+        // Yelkovan görünür modda 1.00 - 15.00, diğerlerinde 5.00 - 15.00 (iki basamak)
+        const enAz = mod === 'acik' ? 1 : 5;
+        const hedef = Math.round((enAz + Math.random() * (15 - enAz)) * 100) / 100;
         ev.tur = { no: ev.no, mod, hedef };
         ev.sureler = {};
         b.oyuncular.filter(o => o.bot).forEach(o => { ev.sureler[o.id] = botSuresi(o, mod, hedef); });

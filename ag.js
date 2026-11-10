@@ -133,9 +133,9 @@ const Ag = (() => {
   function botAyarla(n) { ag.bot = Math.max(0, Math.min(EN_COK - lobiListesi().length, n)); lobiyiYay(); }
 
   // Ev oyunu başlatır: oyuncular = [{ id, ad, renk, bot }] (insanlar önce). Her misafire kendi id'si gider.
-  function oyunuBaslat(oyunId, liste) {
+  function oyunuBaslat(oyunId, liste, oyunAyar = {}) {
     ag.oyunda = true;
-    misafirler().forEach(p => gonder(p.misafir, { tip: 'basla', oyun: oyunId, oyuncular: liste, benId: p.oyunId }));
+    misafirler().forEach(p => gonder(p.misafir, { tip: 'basla', oyun: oyunId, oyuncular: liste, benId: p.oyunId, ayar: oyunAyar }));
     lobiyiYay();
   }
   // Ev: oyuna girecek insanlar (bağlı olanlar), oyun id'leri atanır

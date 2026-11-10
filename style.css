@@ -272,3 +272,9 @@ body.dokunmatik #ipucu { display: none !important; }
   .zmSaat { width: min(40vw, 46vh); }
   #zmDur { padding: 10px 30px; }
 }
+
+/* Mini oyun kartındaki açılış ayarı (ör. tur sayısı) */
+.oyunAyar { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; color: var(--soluk); }
+.oyunAyar span { margin-right: 4px; font-weight: 600; }
+.oyunAyar button { padding: 6px 0; min-width: 36px; font-size: 14px; background: rgba(255, 255, 255, 0.08); box-shadow: none; }
+.oyunAyar button.secili { background: linear-gradient(135deg, #2bb8e6, #7b4dff); }
