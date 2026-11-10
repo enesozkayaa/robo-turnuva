@@ -6,7 +6,7 @@
 // =============================================================
 
 const Cekirdek = (() => {
-  let renderer, sahne, kamera;
+  let renderer, sahne, kamera, hemi, gunes;
   const saat = new THREE.Clock();
   const guncellemeler = new Set();   // her karede (dt, zaman) ile çağrılır; false dönerse silinir
   const isin = new THREE.Raycaster();
@@ -26,8 +26,9 @@ const Cekirdek = (() => {
     sahne.background = new THREE.Color(0x04030c);
     kamera = new THREE.PerspectiveCamera(42, 1, 0.1, 400);
 
-    sahne.add(new THREE.HemisphereLight(0x8fa8ff, 0x1a0f2e, 0.75));
-    const gunes = new THREE.DirectionalLight(0xdfe6ff, 1.6);
+    hemi = new THREE.HemisphereLight(0x8fa8ff, 0x1a0f2e, 0.75);
+    sahne.add(hemi);
+    gunes = new THREE.DirectionalLight(0xdfe6ff, 1.6);
     gunes.position.set(-8, 18, 10);
     gunes.castShadow = true;
     gunes.shadow.mapSize.set(2048, 2048);
@@ -315,6 +316,8 @@ const Cekirdek = (() => {
   return {
     // kare: testte arka plandaki sekmede kareyi elle ilerletmek için (oyun kullanmaz)
     kare,
+    // Genel ışık seviyesi: 1 normal, 0'a yakın karanlık (ör. Karanlık Ev)
+    isikSeviyesi(k) { hemi.intensity = 0.75 * k; gunes.intensity = 1.6 * k; },
     baslat, guncelle, animasyon, kameraAyarla, zemineIsin, ekranda, salla, etiket, robotYap, isinYap, patlama, parlamaDokusu,
     get sahne() { return sahne; }, get kamera() { return kamera; }, get tuval() { return renderer.domElement; },
   };
