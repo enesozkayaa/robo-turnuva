@@ -17,7 +17,8 @@ const EvMotor = (() => {
   const DUVAR = 0.22, KAPI = 1.35;
   const ROBOT_R = 0.34, HIZ = 3.9;
   const SURE = { baslangic: 3, arama: 40, karanlik: 30, aydinlik: 10, son: 3.5 };
-  const FENER = { menzil: 4.2, aci: 0.5 }, AVCI_FENER = { menzil: 2, aci: 0.75 };
+  // Fener: huni şeklinde önünü gösterir (aci = huninin yarı açısı). Avcınınki kısa.
+  const FENER = { menzil: 5, aci: 0.6 }, AVCI_FENER = { menzil: 2.2, aci: 0.55 };
   const ATES_ARA = 0.8, LAZER_MENZIL = 30;
   const PUAN = { kalan: 3, vurus: 2 };
 

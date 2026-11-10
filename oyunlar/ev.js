@@ -101,6 +101,15 @@
     let durdu = false, birikim = 0, bittiMi = false, sonSn = null, benA = 0, atesIstek = false;
     let isikHedef = 1, isikSimdi = 1;
     const FENER_RENK = 0xfff2c8;
+    // Huni dokusu: dibi parlak, uca doğru solan ışık (yerde fenerin şeklini gösterir)
+    const huniDoku = (() => {
+      const c = document.createElement('canvas'); c.width = c.height = 128;
+      const g = c.getContext('2d');
+      const r = g.createRadialGradient(64, 64, 2, 64, 64, 64);
+      r.addColorStop(0, 'rgba(255,245,210,0.95)'); r.addColorStop(0.55, 'rgba(255,240,200,0.45)'); r.addColorStop(1, 'rgba(255,240,200,0)');
+      g.fillStyle = r; g.fillRect(0, 0, 128, 128);
+      return new THREE.CanvasTexture(c);
+    })();
 
     // ---------- Telefon/bilgisayar eylem düğmesi ----------
     const dugme = document.createElement('button');
@@ -147,7 +156,13 @@
         tabanca.position.set(0.22, 0.78, 0.3);
         tabanca.visible = false;
         r.govde.add(tabanca);
-        R[o.id] = { r, isik, hedef, tabanca };
+        // Yerde huni şeklinde ışık izi
+        const huni = new THREE.Group();
+        const huniMesh = new THREE.Mesh(new THREE.CircleGeometry(1, 32, -1, 2), new THREE.MeshBasicMaterial({ map: huniDoku, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending }));
+        huniMesh.rotation.x = -Math.PI / 2; huniMesh.position.y = 0.03;
+        huni.add(huniMesh); huni.visible = false;
+        grup.add(huni);
+        R[o.id] = { r, isik, hedef, tabanca, huni, huniMesh, huniAci: null };
         hafiza[o.id] = {};
       });
       ben = d.oyuncular.find(o => o.id === b.benId);
@@ -382,15 +397,27 @@
       const izleyen = ben.canli ? ben : null;
       d.oyuncular.forEach(o => {
         const x = R[o.id];
-        if (!o.canli) { x.r.goster(false); x.isik.intensity = 0; return; }
+        if (!o.canli) { x.r.goster(false); x.isik.intensity = 0; x.huni.visible = false; return; }
         x.r.konum(o.x, o.z); x.r.yon(o.a);
         const avci = o.id === d.avci;
         const fenerAcik = !d.isikAcik && (o.fener || avci);
         const f = avci ? M.AVCI_FENER : M.FENER;
-        x.isik.intensity = fenerAcik ? (avci ? 3 : 9) : 0;
-        x.isik.distance = f.menzil + 1; x.isik.angle = f.aci;
-        x.isik.position.set(o.x, 1.1, o.z);
-        x.hedef.position.set(o.x + Math.cos(o.a) * 3, 0, o.z + Math.sin(o.a) * 3);
+        // Işık robotun hemen önünden, alçaktan yere doğru: önünü huni gibi aydınlatır
+        x.isik.intensity = fenerAcik ? (avci ? 7 : 16) : 0;
+        x.isik.distance = f.menzil * 1.25; x.isik.angle = f.aci; x.isik.penumbra = 0.3; x.isik.decay = 1;
+        x.isik.position.set(o.x + Math.cos(o.a) * 0.2, 0.75, o.z + Math.sin(o.a) * 0.2);
+        x.hedef.position.set(o.x + Math.cos(o.a) * 2, 0, o.z + Math.sin(o.a) * 2);
+        // Yerdeki huni: duvara/eşyaya çarpınca orada biter
+        const gorunurHuni = fenerAcik && (o.id === b.benId || !izleyen || M.odaBul(h, o.x, o.z) === benimOda);
+        x.huni.visible = gorunurHuni;
+        if (gorunurHuni) {
+          if (x.huniAci !== f.aci) { x.huniAci = f.aci; x.huniMesh.geometry.dispose(); x.huniMesh.geometry = new THREE.CircleGeometry(1, 32, -f.aci, f.aci * 2); }
+          const uzun = Math.min(f.menzil, M.engeleKadar(h, o.x, o.z, Math.cos(o.a), Math.sin(o.a), f.menzil) + 0.4);
+          x.huni.position.set(o.x, 0, o.z);
+          x.huni.rotation.y = -o.a;
+          x.huni.scale.set(uzun, 1, uzun);
+          x.huniMesh.material.opacity = avci ? 0.3 : 0.55;
+        }
         const ayniOda = benimOda === null || M.odaBul(h, o.x, o.z) === benimOda;
         const gorunsun = !izleyen || (ayniOda && (d.isikAcik || M.gorunur(d, izleyen, o)));
         x.r.goster(gorunsun);
