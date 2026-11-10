@@ -181,7 +181,8 @@ const Cekirdek = (() => {
 
   // ---------- Robot ----------
   // Uçan küçük robot. İleri yönü +x. Döndürmek için: robot.yon(a) → (cos a, sin a) yönüne bakar.
-  function robotYap(renkHex, ad) {
+  // sec.silahsiz: elinde lazer silahı olmasın (ör. yemek masasında)
+  function robotYap(renkHex, ad, sec = {}) {
     const renk = new THREE.Color(renkHex);
     const grup = new THREE.Group();
     const govde = new THREE.Group();   // havada süzülen kısım
@@ -203,11 +204,13 @@ const Cekirdek = (() => {
     ekle(new THREE.BoxGeometry(0.12, 0.1, 0.32), isik, 0.19, 1.07, 0, false);               // vizör (ileri bakar)
     ekle(new THREE.CylinderGeometry(0.015, 0.015, 0.22, 6), koyu, -0.05, 1.36, 0);          // anten
     ekle(new THREE.SphereGeometry(0.045, 10, 8), isik, -0.05, 1.48, 0, false);
-    // Lazer silahı: sağ kolda, ileri doğru
-    ekle(new THREE.SphereGeometry(0.1, 12, 10), boya, 0, 0.78, 0.33);
-    const namlu = ekle(new THREE.CylinderGeometry(0.06, 0.075, 0.5, 12), koyu, 0.25, 0.78, 0.33);
-    namlu.rotation.z = Math.PI / 2;
-    ekle(new THREE.SphereGeometry(0.05, 10, 8), isik, 0.51, 0.78, 0.33, false);
+    // Omuz ve lazer silahı: sağ kolda, ileri doğru
+    const omuz = ekle(new THREE.SphereGeometry(0.1, 12, 10), boya, 0, 0.78, 0.33);
+    if (!sec.silahsiz) {
+      const namlu = ekle(new THREE.CylinderGeometry(0.06, 0.075, 0.5, 12), koyu, 0.25, 0.78, 0.33);
+      namlu.rotation.z = Math.PI / 2;
+      ekle(new THREE.SphereGeometry(0.05, 10, 8), isik, 0.51, 0.78, 0.33, false);
+    }
 
     // Altındaki renkli parıltı (kimin nerede olduğu yukarıdan kolay görünsün)
     const parilti = new THREE.Mesh(new THREE.CircleGeometry(0.75, 32), new THREE.MeshBasicMaterial({ color: renk, map: parlamaDokusu(), transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending }));
@@ -223,7 +226,7 @@ const Cekirdek = (() => {
 
     let saydamlik = 1;
     const robot = {
-      grup, govde, renk, etiket: ad3, parilti,
+      grup, govde, renk, etiket: ad3, parilti, omuz,
       // Silah ucunun gövdeye göre yeri (ışın buradan çıkar)
       namluYuksekligi: 0.78, namluYan: 0.33,
       konum(x, z) { grup.position.x = x; grup.position.z = z; },

@@ -51,26 +51,38 @@
     d.colorSpace = THREE.SRGBColorSpace;
     return d;
   }
+  // Gerçek çatal: yassı sap, daralan boyun, geniş baş, 4 diş (dişler aşağı, sap yukarı).
+  // Sapın ucu yerel (0, CATAL_SAP_UCU, 0): robotun eli orayı tutar.
+  const CATAL_OLCEK = 2.6, CATAL_SAP_UCU = 0.33;
+  const CATAL_DIS_UCU = -0.195 * CATAL_OLCEK;   // dişlerin ucu, çatalın merkezine göre (dünya ölçüsü)
   function catalYap() {
     const g = new THREE.Group();
-    const mal = new THREE.MeshStandardMaterial({ color: 0xd8dde8, metalness: 0.9, roughness: 0.25 });
-    const sap = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.022, 0.42, 8), mal);
-    sap.position.y = 0.26;
-    g.add(sap);
-    const boyun = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.03, 0.02), mal);
-    boyun.position.y = 0.05;
-    g.add(boyun);
-    [-0.035, 0, 0.035].forEach(x => {
-      const dis = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.1, 6), mal);
-      dis.position.set(x, -0.01, 0);
-      g.add(dis);
+    const mal = new THREE.MeshStandardMaterial({ color: 0xdfe4ee, metalness: 0.95, roughness: 0.18 });
+    const parca = (geo, x, y, rz = 0) => { const m = new THREE.Mesh(geo, mal); m.position.set(x, y, 0); m.rotation.z = rz; m.castShadow = true; g.add(m); return m; };
+    // Sap: yassı çubuk ve yuvarlak uç
+    parca(new THREE.BoxGeometry(0.034, 0.3, 0.012), 0, 0.26);
+    parca(new THREE.CylinderGeometry(0.026, 0.026, 0.012, 16), 0, 0.41).rotation.x = Math.PI / 2;
+    // Boyun: dar, başa doğru açılır
+    parca(new THREE.BoxGeometry(0.022, 0.1, 0.012), 0, 0.07);
+    parca(new THREE.CylinderGeometry(0.012, 0.045, 0.05, 4, 1), 0, 0.0).scale.z = 0.25;
+    // Baş ve 4 diş
+    parca(new THREE.BoxGeometry(0.1, 0.03, 0.012), 0, -0.035);
+    [-0.039, -0.013, 0.013, 0.039].forEach(x => {
+      parca(new THREE.BoxGeometry(0.011, 0.13, 0.01), x, -0.11);
+      parca(new THREE.ConeGeometry(0.0065, 0.025, 6), x, -0.185, Math.PI);
     });
-    // Ucundaki bezelye
-    const tane = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), new THREE.MeshStandardMaterial({ color: 0x5fd03a, roughness: 0.5, emissive: 0x1a4a0a, emissiveIntensity: 0.4 }));
-    tane.position.y = -0.03;
-    tane.visible = false;
-    g.add(tane);
-    g.userData.tane = tane;
+    g.scale.setScalar(CATAL_OLCEK);
+    // Dişlere batırılmış bezelyeler: alttan yukarı dizilir (50'ye kadar)
+    const taneler = new THREE.InstancedMesh(new THREE.SphereGeometry(0.02, 10, 8), new THREE.MeshStandardMaterial({ color: 0x5fd03a, roughness: 0.5, emissive: 0x1a4a0a, emissiveIntensity: 0.4 }), BEZELYE);
+    const m = new THREE.Matrix4();
+    for (let k = 0; k < BEZELYE; k++) {
+      const dis = [-0.039, -0.013, 0.013, 0.039][k % 4], sira = Math.floor(k / 4);
+      m.makeTranslation(dis + (Math.random() - 0.5) * 0.01, -0.155 + sira * 0.034, (k % 2 ? 1 : -1) * 0.012);
+      taneler.setMatrixAt(k, m);
+    }
+    taneler.count = 0;
+    g.add(taneler);
+    g.userData.taneler = taneler;
     return g;
   }
 
@@ -81,7 +93,7 @@
     ozet: 'Gardiyan gazete okurken bezelyeleri gizlice ye! Gazeteyi indirince kıpırdayan vurulur.',
     kurallar: [
       `Herkesin tabağında <b>${BEZELYE} bezelye</b> var. Masanın ucunda dev gardiyan robot gazete okuyor.`,
-      '<b>Sol tık</b> (ya da Z): çatalı tabağa batır, bir bezelye al. <b>Sağ tık</b> (ya da X): ye. Telefonda alttaki iki düğme.',
+      '<b>Sol tık</b> (ya da Z): çatalı tabağa batır, her batırışta çatala bir bezelye takılır (istersen 50 tanesini birden biriktir). <b>Sağ tık</b> (ya da X): çataldakilerin hepsini bir kerede ye. Telefonda alttaki iki düğme.',
       'Gardiyan gazeteyi <b>indirip bakarken</b> çatalını oynatırsan seni <b>lazerle vurur</b>, elenirsin!',
       'Dikkat: gazete bazen <b>iner gibi yapıp</b> geri kalkar. Gerçekten inerken de önce çok az kıpırdar. Durup bekle, kalkınca kaldığın yerden devam et.',
       'Tabağını <b>ilk bitiren 1.</b> olur. Kimse bitiremezse ayakta <b>son kalan</b> kazanır.',
@@ -92,7 +104,7 @@
   function baslat(b) {
     const { kanal } = b;
     Kontrol.ac(false);
-    Cekirdek.kameraAyarla(4.9, 0.55);
+    Cekirdek.kameraAyarla(4.5, 0.58);
     const grup = new THREE.Group();
     Cekirdek.sahne.add(grup);
     const ben = b.oyuncular.find(o => o.id === b.benId);
@@ -163,7 +175,7 @@
     b.oyuncular.forEach((o, i) => {
       const [x, z, yon] = KOLTUK[i];
       const sag = x > 0;
-      const r = Cekirdek.robotYap(o.renk, o.id === b.benId ? `${o.ad} (sen)` : o.ad);
+      const r = Cekirdek.robotYap(o.renk, o.id === b.benId ? `${o.ad} (sen)` : o.ad, { silahsiz: true });
       r.grup.scale.setScalar(1.15);
       r.konum(x, z); r.yon(yon);
       grup.add(r.grup);
@@ -183,13 +195,23 @@
       grup.add(taneler);
       const catal = catalYap();
       grup.add(catal);
+      // Kol: omuzdan çatalın sapına uzanan silindir + el
+      const kolMal = new THREE.MeshStandardMaterial({ color: o.renk, metalness: 0.3, roughness: 0.4 });
+      const kolGeo = new THREE.CylinderGeometry(0.055, 0.065, 1, 10); kolGeo.translate(0, 0.5, 0);
+      const kol = new THREE.Mesh(kolGeo, kolMal); kol.castShadow = true;
+      const el = new THREE.Mesh(new THREE.SphereGeometry(0.085, 12, 10), kolMal);
+      grup.add(kol, el);
+      const ic = sag ? -1 : 1;   // masanın ortasına doğru
       const yer = {
-        dinlen: new THREE.Vector3(tx + (sag ? 0.22 : -0.22), MASA_Y + 0.42, z + 0.18),
-        tabak: new THREE.Vector3(tx, MASA_Y + 0.12, z),
-        agiz: new THREE.Vector3(x + (sag ? -0.3 : 0.3), 1.3, z),
+        dinlen: new THREE.Vector3(tx - ic * 0.42, MASA_Y + 0.62, z + 0.1),
+        tabak: new THREE.Vector3(tx, MASA_Y + 0.07 - CATAL_DIS_UCU, z),
+        agiz: new THREE.Vector3(x + ic * 0.95, 1.25, z + 0.05),
+        // Çatalın eğimi: dinlenirken sap robota doğru, batırırken dik, yerken dişler ağza doğru
+        eDinlen: ic * 0.85, eTabak: ic * 0.15, eAgiz: -ic * 1.45,
       };
       catal.position.copy(yer.dinlen);
-      P[o.id] = { o, r, catal, taneler, yer, sag, tabak: BEZELYE, catalda: 0, durum: 'oynuyor', sira: 0, anim: null };
+      catal.rotation.z = yer.eDinlen;
+      P[o.id] = { o, r, catal, kol, el, taneler, yer, sag, tabak: BEZELYE, catalda: 0, durum: 'oynuyor', sira: 0, anim: null };
     });
 
     function hudOyuncular() {
@@ -208,21 +230,39 @@
       if (tip === 'bat') Ses.tik();
       else Ses.ham();
     }
+    const _omuz = new THREE.Vector3(), _sap = new THREE.Vector3(), _yon = new THREE.Vector3(), _yukari = new THREE.Vector3(0, 1, 0);
     function catalGuncelle(p, dt) {
       const { catal, yer } = p;
-      if (!p.anim) { catal.position.lerp(yer.dinlen, Math.min(1, dt * 10)); catal.rotation.set(0, 0, p.sag ? 0.5 : -0.5); return; }
-      p.anim.t += dt / EYLEM_SN;
-      const t = Math.min(1, p.anim.t), git = Math.sin(t * Math.PI);   // 0 → 1 → 0
-      const hedef = p.anim.tip === 'bat' ? yer.tabak : yer.agiz;
-      catal.position.lerpVectors(yer.dinlen, hedef, git);
-      catal.rotation.set(0, 0, (p.sag ? 0.5 : -0.5) * (1 - git) + (p.anim.tip === 'ye' ? (p.sag ? -1.2 : 1.2) * git : 0));
-      if (p.anim.tip === 'bat' && t >= 0.5 && !p.anim.ald) { p.anim.ald = true; catal.userData.tane.visible = true; }
-      if (p.anim.tip === 'ye' && t >= 0.5 && !p.anim.ald) { p.anim.ald = true; catal.userData.tane.visible = false; }
-      if (t >= 1) p.anim = null;
+      if (!p.anim) {
+        catal.position.lerp(yer.dinlen, Math.min(1, dt * 10));
+        catal.rotation.z += (yer.eDinlen - catal.rotation.z) * Math.min(1, dt * 10);
+      } else {
+        p.anim.t += dt / EYLEM_SN;
+        const t = Math.min(1, p.anim.t), git = Math.sin(t * Math.PI);   // 0 → 1 → 0
+        const yemek = p.anim.tip === 'ye';
+        catal.position.lerpVectors(yer.dinlen, yemek ? yer.agiz : yer.tabak, git);
+        catal.rotation.z = yer.eDinlen + ((yemek ? yer.eAgiz : yer.eTabak) - yer.eDinlen) * git;
+        if (t >= 0.5 && !p.anim.ald) {
+          p.anim.ald = true;
+          const fs = catal.userData.taneler;
+          fs.count = yemek ? 0 : Math.min(BEZELYE, Math.max(fs.count + 1, p.catalda));
+        }
+        if (t >= 1) p.anim = null;
+      }
+      // Kol: omuzdan sapın ucuna
+      catal.updateMatrixWorld();
+      p.r.omuz.getWorldPosition(_omuz);
+      catal.localToWorld(_sap.set(0, CATAL_SAP_UCU, 0));
+      _yon.subVectors(_sap, _omuz);
+      const L = _yon.length();
+      p.kol.position.copy(_omuz);
+      p.kol.scale.set(1, L, 1);
+      p.kol.quaternion.setFromUnitVectors(_yukari, _yon.normalize());
+      p.el.position.copy(_sap);
     }
     function tabakCiz(p) {
       p.taneler.count = p.tabak;
-      p.catal.userData.tane.visible = p.catalda > 0;
+      if (!p.anim) p.catal.userData.taneler.count = Math.min(BEZELYE, p.catalda);
     }
 
     // ---------- Herkeste: gazete fazı ----------
@@ -255,7 +295,7 @@
       if (bitti || durdu || faz === 'bekle') return;
       const p = P[b.benId];
       if (p.durum !== 'oynuyor' || p.anim) return;
-      if (tip === 'bat' && (p.catalda || !p.tabak)) return;
+      if (tip === 'bat' && !p.tabak) return;
       if (tip === 'ye' && !p.catalda) return;
       const simdi = performance.now();
       if (simdi - sonEylem < EYLEM_SN * 900) return;
@@ -301,7 +341,7 @@
         Cekirdek.patlama(s.x, 0.9, s.z, p.o.renk);
         Ses.patlama();
         p.r.goster(false);
-        p.catal.visible = false;
+        p.catal.visible = false; p.kol.visible = false; p.el.visible = false;
       }, 120);
       if (id === b.benId) { b.hud.perde('flas'); b.hud.bilgi('💀 Gardiyan seni gördü! Diğerlerini izliyorsun…', true); }
       else b.hud.bilgi(`💥 Gardiyan ${p.o.ad}'ı yakaladı!`);
@@ -380,7 +420,8 @@
         // Bakarken kıpırdadı mı? (misafir kendisi bildirir; ev kendi saatine de bakar, gecikme payıyla)
         const bakarken = ev.faz === 'bakiyor' && (simdi - ev.fazBasla) / 1000 > TOLERANS + (id === b.benId || p.o.bot ? 0 : 0.6);
         if (yak || bakarken) return yakala(id, tip);
-        if (tip === 'bat' && !p.catalda && p.tabak > 0) { p.tabak--; p.catalda = 1; }
+        // Çatala istediği kadar bezelye batırabilir; ye: çataldakilerin hepsi birden yenir
+        if (tip === 'bat' && p.tabak > 0) { p.tabak--; p.catalda++; }
         else if (tip === 'ye' && p.catalda) { p.catalda = 0; }
         else return;
         p.sonEylem = simdi;
@@ -449,7 +490,11 @@
           if (p.durum !== 'oynuyor' || !p.bot || p.bot.duruyor || p.anim) return;
           if (simdi < p.bot.sonraki) return;
           p.bot.sonraki = simdi + p.bot.hiz * 1000 * (0.8 + Math.random() * 0.5);
-          ev.eylem(p.o.id, p.catalda ? 'ye' : 'bat', false);
+          // Bot birkaç bezelye biriktirip bir kerede yer
+          p.bot.yigin ??= 1 + Math.floor(Math.random() * 6);
+          const ye = p.catalda >= p.bot.yigin || (!p.tabak && p.catalda);
+          if (ye) p.bot.yigin = 1 + Math.floor(Math.random() * 6);
+          ev.eylem(p.o.id, ye ? 'ye' : 'bat', false);
         });
       };
       ev.koptu = id => { const p = P[id]; if (p) { p.o.bot = true; p.bot = { hiz: 0.5, dikkat: 0.85, duruyor: ev.faz !== 'okuyor', sonraki: 0 }; botlar.push(p); } };
