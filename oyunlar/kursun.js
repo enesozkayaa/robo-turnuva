@@ -111,7 +111,7 @@
     kurallar: [
       'Kolonlu bir odadasınız. Herkesin silahı <b>kendiliğinden</b> ateş eder; sen yürür ve nişan alırsın.',
       'Kurşunlar <b>ağır çekimde</b> gelir: gördüğün kurşundan kenara çekil ya da kolonun arkasına saklan. Kurşun kolonda ve duvarda durur.',
-      'Kurşunların hızı hep aynı ama her <b>5 saniyede</b> silahlar <b>daha sık</b> ateş eder. Sonunda kurşunlar <b>peş peşe, durmadan</b> çıkar!',
+      'Kurşunların hızı hep aynı ama her <b>8 saniyede</b> silahlar <b>daha sık</b> ateş eder. Sonunda kurşunlar <b>peş peşe, durmadan</b> çıkar!',
       `Her <b>${M.KOLON_SN} saniyede</b> bir kolon önce kırmızı yanıp söner, sonra yere iner. Kimse elenmezse sonunda oda bomboş kalır!`,
       'Herkesin <b>3 canı</b> var. Vurulunca 1 can gider ve kısa süre yanıp sönersin (o sırada kurşun işlemez). Canı biten elenir.',
       'Bilgisayar: <b>WASD / ok tuşları</b> yürü, <b>fare</b> nişan. Telefon: <b>sol</b> joystick yürü, <b>sağ</b> joystick nişan.',
