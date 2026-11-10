@@ -14,6 +14,7 @@
 (() => {
   const M = EvMotor;
   const ADIM = 1 / 60, YAYIN_SN = 0.05, DUVAR_H = 1.3;
+  const MASKE_Y = 1.85;   // perde en uzun eşyadan (kitaplık 1.6) yüksekte olsun
   const ODA_RENK = [0x3b3150, 0x2f3d52, 0x3f3a2c, 0x2c4238, 0x47303a];
   const ESYA_RENK = { dolap: [0x7a4a2a, 0x5d3a22], masa: [0xa0703a, 0x8a6030], sandik: [0x8a5a2a, 0x6b4520], yatak: [0x4a6aa8, 0x6a4a98], kitaplik: [0x5a3a20, 0x4a2e18] };
 
@@ -79,7 +80,7 @@
     ozet: 'Silahı bulan avcı olur, ışıklar söner. Fenerle saklan, avcıya yakalanma!',
     kurallar: [
       'Kuş bakışı bir evdesiniz: odalar, kapılar, dolaplar, masalar. Herkes ortadaki salondan başlar.',
-      'Ekranda sadece bulunduğun <b>oda</b> görünür; kapıdan geçince diğer odaya geçersin. Odalardan birinde <b>lazer silahı</b> saklı: ara! İlk bulan <b>avcı</b> olur ve <b>ışıklar söner</b> (30 saniye).',
+      'Sen ekranın ortasındasın, kamera seninle gezer; sadece bulunduğun <b>oda</b> görünür. Odalardan birinde <b>lazer silahı</b> saklı: ara! İlk bulan <b>avcı</b> olur ve <b>ışıklar söner</b> (30 saniye).',
       'Karanlıkta herkesin <b>feneri</b> var (aç/kapa). Fener yakını gösterir ama feneri açık olanı uzaktan herkes görür! Avcının feneri çok sönüktür.',
       'Avcı <b>lazerle</b> ateş eder: lazer duvar ve eşyadan geçmez, kapılardan geçer. Bir eşyanın arkasına saklan!',
       'Sonra <b>ışıklar açılır</b> (10 saniye): kaç, avcı da kovalar.',
@@ -153,7 +154,7 @@
       // Maske: bulunduğun odanın dışını kapatan 4 siyah perde (sadece o oda görünsün)
       maske = [0, 1, 2, 3].map(() => {
         const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0x04030c }));
-        m.rotation.x = -Math.PI / 2; m.position.y = DUVAR_H + 0.05; m.renderOrder = 5;
+        m.rotation.x = -Math.PI / 2; m.position.y = MASKE_Y; m.renderOrder = 5;
         grup.add(m);
         return m;
       });
@@ -367,13 +368,13 @@
       ['x1', 'z1', 'x2', 'z2'].forEach(k => { kam[k] += (hedefKutu[k] - kam[k]) * yumus; });
       const genis = 80;
       const [mSol, mSag, mUst, mAlt] = maske;
-      mSol.scale.set(genis, genis * 2, 1); mSol.position.set(kam.x1 - genis / 2, DUVAR_H + 0.05, (kam.z1 + kam.z2) / 2);
-      mSag.scale.set(genis, genis * 2, 1); mSag.position.set(kam.x2 + genis / 2, DUVAR_H + 0.05, (kam.z1 + kam.z2) / 2);
-      mUst.scale.set(kam.x2 - kam.x1, genis, 1); mUst.position.set((kam.x1 + kam.x2) / 2, DUVAR_H + 0.05, kam.z1 - genis / 2);
-      mAlt.scale.set(kam.x2 - kam.x1, genis, 1); mAlt.position.set((kam.x1 + kam.x2) / 2, DUVAR_H + 0.05, kam.z2 + genis / 2);
+      mSol.scale.set(genis, genis * 2, 1); mSol.position.set(kam.x1 - genis / 2, MASKE_Y, (kam.z1 + kam.z2) / 2);
+      mSag.scale.set(genis, genis * 2, 1); mSag.position.set(kam.x2 + genis / 2, MASKE_Y, (kam.z1 + kam.z2) / 2);
+      mUst.scale.set(kam.x2 - kam.x1, genis, 1); mUst.position.set((kam.x1 + kam.x2) / 2, MASKE_Y, kam.z1 - genis / 2);
+      mAlt.scale.set(kam.x2 - kam.x1, genis, 1); mAlt.position.set((kam.x1 + kam.x2) / 2, MASKE_Y, kam.z2 + genis / 2);
       if (ben.canli) {
-        const r = Math.max(kam.x2 - kam.x1, kam.z2 - kam.z1) / 2 + 0.3;
-        Cekirdek.kameraOdak((kam.x1 + kam.x2) / 2, (kam.z1 + kam.z2) / 2, r, 1.38);
+        // Kamera beni takip eder: ben ekranın ortasında dururum, oda etrafımda kayar
+        Cekirdek.kameraOdak(ben.x, ben.z, 3.4, 1.38);
       } else Cekirdek.kameraOdak(0, 0, M.YARI + 0.8, 1.45);
       const benimOda = ben.canli ? M.odaBul(h, ben.x, ben.z) : null;
 
