@@ -16,7 +16,7 @@ const EvMotor = (() => {
   const N = 5, C = 4.2, YARI = (N * C) / 2;          // oda ızgarası, oda boyu
   const DUVAR = 0.22, KAPI = 1.35;
   const ROBOT_R = 0.34, HIZ = 3.9;
-  const SURE = { baslangic: 3, arama: 20, karanlik: 30, aydinlik: 10, son: 3.5 };
+  const SURE = { baslangic: 3, arama: 40, karanlik: 30, aydinlik: 10, son: 3.5 };
   const FENER = { menzil: 4.2, aci: 0.5 }, AVCI_FENER = { menzil: 2, aci: 0.75 };
   const ATES_ARA = 0.8, LAZER_MENZIL = 30;
   const PUAN = { kalan: 3, vurus: 2 };
@@ -26,6 +26,9 @@ const EvMotor = (() => {
     return () => { t |= 0; t = (t + 0x6D2B79F5) | 0; let r = Math.imul(t ^ (t >>> 15), 1 | t); r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r; return ((r ^ (r >>> 14)) >>> 0) / 4294967296; };
   }
   const hucreMerkez = (i, j) => [-YARI + C * (i + 0.5), -YARI + C * (j + 0.5)];
+  const hucre = (x, z) => [Math.max(0, Math.min(N - 1, Math.floor((x + YARI) / C))), Math.max(0, Math.min(N - 1, Math.floor((z + YARI) / C)))];
+  // Noktanın bulunduğu oda (birleşik odalar tek oda)
+  const odaBul = (h, x, z) => { const [i, j] = hucre(x, z); return h.odaNo[j * N + i]; };
 
   // ---------- Harita ----------
   function haritaYap(tohum) {
@@ -129,7 +132,24 @@ const EvMotor = (() => {
     }
     const odalar = [];
     for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) odalar.push({ i, j, renk: Math.floor(rnd() * 5), salon: i === ORTA && j === ORTA });
-    const harita = { tohum, kutular, kapilar, odalar, ORTA };
+    // Oda numaraları: aralarındaki duvar tamamen kalkmış (birleşik) hücreler aynı odadır
+    const odaNo = Array.from({ length: N * N }, (_, k) => k);
+    const kok = k => (odaNo[k] === k ? k : (odaNo[k] = kok(odaNo[k])));
+    kenar.forEach((v, k) => {
+      if (v !== 'acik') return;
+      const [i, j, yon] = k.split(',');
+      const a = +j * N + +i, b = yon === 'x' ? a + 1 : a + N;
+      odaNo[kok(a)] = kok(b);
+    });
+    const odaKutu = {};
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+      const id = kok(j * N + i);
+      const x1 = -YARI + C * i, z1 = -YARI + C * j;
+      const k = odaKutu[id] ??= { x1, z1, x2: x1 + C, z2: z1 + C };
+      k.x1 = Math.min(k.x1, x1); k.z1 = Math.min(k.z1, z1); k.x2 = Math.max(k.x2, x1 + C); k.z2 = Math.max(k.z2, z1 + C);
+    }
+    for (let k = 0; k < N * N; k++) odaNo[k] = kok(k);
+    const harita = { tohum, kutular, kapilar, odalar, ORTA, odaNo, odaKutu };
     harita.izgara = izgaraYap(harita);
     return harita;
   }
@@ -402,11 +422,28 @@ const EvMotor = (() => {
     };
     const yonu = g => (Math.hypot(g.hx || 0, g.hz || 0) > 0.1 ? Math.atan2(g.hz, g.hx) : o.a);
 
-    // Arama: silaha koş (biraz geç fark edenler olur)
+    // Arama: silahın yerini bilmez; odaları gezer, silahla aynı odaya girince ona koşar
     if (d.faz === 'arama') {
       hafiza.gecikme ??= d.t + rnd() * 1.2;
       if (d.t < hafiza.gecikme) return {};
-      const g = yuru(d.silah.x, d.silah.z, 0.85 + hafiza.cesaret * 0.15);
+      if (hafiza.aramaTur !== d.tur) { hafiza.aramaTur = d.tur; hafiza.gezilen = new Set(); hafiza.aramaHedef = null; }
+      const benimOda = odaBul(h, o.x, o.z);
+      hafiza.gezilen.add(benimOda);
+      if (benimOda === odaBul(h, d.silah.x, d.silah.z)) {
+        const g = yuru(d.silah.x, d.silah.z, 0.85 + hafiza.cesaret * 0.15);
+        return { ...g, a: yonu(g) };
+      }
+      if (hafiza.aramaHedef === null || hafiza.gezilen.has(odaBul(h, ...hafiza.aramaHedef))) {
+        // Gezilmemiş odalardan yakın olanlardan birine git
+        const adaylar = [];
+        for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+          const id = h.odaNo[j * N + i];
+          if (!hafiza.gezilen.has(id)) adaylar.push(hucreMerkez(i, j));
+        }
+        adaylar.sort((p, q) => Math.hypot(p[0] - o.x, p[1] - o.z) - Math.hypot(q[0] - o.x, q[1] - o.z));
+        hafiza.aramaHedef = adaylar.length ? adaylar[Math.floor(rnd() * Math.min(3, adaylar.length))] : [d.silah.x, d.silah.z];
+      }
+      const g = yuru(...hafiza.aramaHedef, 0.85 + hafiza.cesaret * 0.15);
       return { ...g, a: yonu(g) };
     }
     hafiza.gecikme = undefined;
@@ -459,7 +496,7 @@ const EvMotor = (() => {
 
   return {
     N, C, YARI, DUVAR, KAPI, ROBOT_R, HIZ, SURE, FENER, AVCI_FENER, ATES_ARA, PUAN,
-    haritaYap, hucreMerkez, yolBul, yeni, adim, botGirdi, canlilar, gorunur, gorus, kutudanIt, engeleKadar,
+    haritaYap, hucreMerkez, hucre, odaBul, yolBul, yeni, adim, botGirdi, canlilar, gorunur, gorus, kutudanIt, engeleKadar,
   };
 })();
 

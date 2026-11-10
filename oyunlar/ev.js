@@ -79,7 +79,7 @@
     ozet: 'Silahı bulan avcı olur, ışıklar söner. Fenerle saklan, avcıya yakalanma!',
     kurallar: [
       'Kuş bakışı bir evdesiniz: odalar, kapılar, dolaplar, masalar. Herkes ortadaki salondan başlar.',
-      'Bir odada <b>lazer silahı</b> parlar. Ona ilk dokunan <b>avcı</b> olur ve <b>ışıklar söner</b> (30 saniye).',
+      'Ekranda sadece bulunduğun <b>oda</b> görünür; kapıdan geçince diğer odaya geçersin. Odalardan birinde <b>lazer silahı</b> saklı: ara! İlk bulan <b>avcı</b> olur ve <b>ışıklar söner</b> (30 saniye).',
       'Karanlıkta herkesin <b>feneri</b> var (aç/kapa). Fener yakını gösterir ama feneri açık olanı uzaktan herkes görür! Avcının feneri çok sönüktür.',
       'Avcı <b>lazerle</b> ateş eder: lazer duvar ve eşyadan geçmez, kapılardan geçer. Bir eşyanın arkasına saklan!',
       'Sonra <b>ışıklar açılır</b> (10 saniye): kaç, avcı da kovalar.',
@@ -96,7 +96,7 @@
     const grup = new THREE.Group();
     Cekirdek.sahne.add(grup);
     Cekirdek.kameraAyarla(M.YARI + 0.8, 1.45);
-    let d = null, R = {}, hafiza = {}, ben = null, silah = null, silahIsik = null;
+    let d = null, R = {}, hafiza = {}, ben = null, silah = null, silahIsik = null, maske = [], kam = null;
     let durdu = false, birikim = 0, bittiMi = false, sonSn = null, benA = 0, atesIstek = false;
     let isikHedef = 1, isikSimdi = 1;
     const FENER_RENK = 0xfff2c8;
@@ -150,6 +150,13 @@
         hafiza[o.id] = {};
       });
       ben = d.oyuncular.find(o => o.id === b.benId);
+      // Maske: bulunduğun odanın dışını kapatan 4 siyah perde (sadece o oda görünsün)
+      maske = [0, 1, 2, 3].map(() => {
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0x04030c }));
+        m.rotation.x = -Math.PI / 2; m.position.y = DUVAR_H + 0.05; m.renderOrder = 5;
+        grup.add(m);
+        return m;
+      });
       silah = silahYap();
       silah.scale.setScalar(1.6);
       silahIsik = new THREE.PointLight(0xff3050, 6, 4, 1.6);
@@ -164,7 +171,7 @@
         silah.visible = true; silahIsik.visible = true;
         Object.values(R).forEach(x => { x.tabanca.visible = false; x.r.goster(true); x.r.saydam(1); x.r.grup.position.y = 0; });
         isikHedef = 1;
-        b.hud.bilgi(`🔎 Tur ${ol.tur}/${d.turSayisi}: silah bir odada parlıyor. Onu ilk bulan avcı olur!`);
+        b.hud.bilgi(`🔎 Tur ${ol.tur}/${d.turSayisi}: silah odalardan birinde saklı. Odaları gez, ilk bulan avcı olur!`);
         Ses.din(true);
         hudOyuncular();
       } else if (ol.tip === 'silahAlindi') {
@@ -348,6 +355,28 @@
         silahIsik.position.set(d.silah.x, 1, d.silah.z);
       }
 
+      // Kamera ve maske: sadece bulunduğum oda görünür (elenince bütün ev)
+      const h = d.harita;
+      let hedefKutu;
+      if (ben.canli) {
+        const k = h.odaKutu[M.odaBul(h, ben.x, ben.z)];
+        hedefKutu = { x1: k.x1 - 0.12, z1: k.z1 - 0.12, x2: k.x2 + 0.12, z2: k.z2 + 0.12 };
+      } else hedefKutu = { x1: -60, z1: -60, x2: 60, z2: 60 };
+      if (!kam) kam = { ...hedefKutu };
+      const yumus = Math.min(1, dt * 7);
+      ['x1', 'z1', 'x2', 'z2'].forEach(k => { kam[k] += (hedefKutu[k] - kam[k]) * yumus; });
+      const genis = 80;
+      const [mSol, mSag, mUst, mAlt] = maske;
+      mSol.scale.set(genis, genis * 2, 1); mSol.position.set(kam.x1 - genis / 2, DUVAR_H + 0.05, (kam.z1 + kam.z2) / 2);
+      mSag.scale.set(genis, genis * 2, 1); mSag.position.set(kam.x2 + genis / 2, DUVAR_H + 0.05, (kam.z1 + kam.z2) / 2);
+      mUst.scale.set(kam.x2 - kam.x1, genis, 1); mUst.position.set((kam.x1 + kam.x2) / 2, DUVAR_H + 0.05, kam.z1 - genis / 2);
+      mAlt.scale.set(kam.x2 - kam.x1, genis, 1); mAlt.position.set((kam.x1 + kam.x2) / 2, DUVAR_H + 0.05, kam.z2 + genis / 2);
+      if (ben.canli) {
+        const r = Math.max(kam.x2 - kam.x1, kam.z2 - kam.z1) / 2 + 0.3;
+        Cekirdek.kameraOdak((kam.x1 + kam.x2) / 2, (kam.z1 + kam.z2) / 2, r, 1.38);
+      } else Cekirdek.kameraOdak(0, 0, M.YARI + 0.8, 1.45);
+      const benimOda = ben.canli ? M.odaBul(h, ben.x, ben.z) : null;
+
       // Robotlar, fenerler ve görünürlük (karanlıkta sadece aydınlanan görünür)
       const izleyen = ben.canli ? ben : null;
       d.oyuncular.forEach(o => {
@@ -361,7 +390,8 @@
         x.isik.distance = f.menzil + 1; x.isik.angle = f.aci;
         x.isik.position.set(o.x, 1.1, o.z);
         x.hedef.position.set(o.x + Math.cos(o.a) * 3, 0, o.z + Math.sin(o.a) * 3);
-        const gorunsun = !izleyen || d.isikAcik || M.gorunur(d, izleyen, o);
+        const ayniOda = benimOda === null || M.odaBul(h, o.x, o.z) === benimOda;
+        const gorunsun = !izleyen || (ayniOda && (d.isikAcik || M.gorunur(d, izleyen, o)));
         x.r.goster(gorunsun);
         x.r.etiket.visible = d.isikAcik || o.id === b.benId;
       });

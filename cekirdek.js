@@ -103,14 +103,22 @@ const Cekirdek = (() => {
   // yaricap: ekrana sığması gereken alan; egim: 0 = yandan, 1.57 = tam tepeden
   // merkezZ: kameranın baktığı nokta (sahne ekranda yukarı/aşağı kaysın diye)
   function kameraAyarla(yaricap, egim = 0.95, merkezZ = 0.6) {
-    bakis.yaricap = yaricap; bakis.egim = egim; bakis.merkez.z = merkezZ;
+    bakis.yaricap = yaricap; bakis.egim = egim; bakis.merkez.set(0, 0, merkezZ);
     boyutla();
+  }
+  // Kamerayı bir noktaya odakla (her karede çağrılabilir; ekran boyutunu yeniden ayarlamaz)
+  function kameraOdak(x, z, yaricap, egim = bakis.egim) {
+    bakis.merkez.set(x, 0, z); bakis.yaricap = yaricap; bakis.egim = egim;
+    if (renderer) kameraKonumla();
   }
   function boyutla() {
     if (!renderer) return;
     const w = window.innerWidth, h = window.innerHeight;
     renderer.setSize(w, h);
     kamera.aspect = w / h;
+    kameraKonumla();
+  }
+  function kameraKonumla() {
     // Dikey ekranda daha tepeden bak: alan daha iyi sığar
     const egim = kamera.aspect < 1 ? Math.min(1.35, bakis.egim + 0.3) : bakis.egim;
     const yarim = THREE.MathUtils.degToRad(kamera.fov / 2);
@@ -318,7 +326,7 @@ const Cekirdek = (() => {
     kare,
     // Genel ışık seviyesi: 1 normal, 0'a yakın karanlık (ör. Karanlık Ev)
     isikSeviyesi(k) { hemi.intensity = 0.75 * k; gunes.intensity = 1.6 * k; },
-    baslat, guncelle, animasyon, kameraAyarla, zemineIsin, ekranda, salla, etiket, robotYap, isinYap, patlama, parlamaDokusu,
+    baslat, guncelle, animasyon, kameraAyarla, kameraOdak, zemineIsin, ekranda, salla, etiket, robotYap, isinYap, patlama, parlamaDokusu,
     get sahne() { return sahne; }, get kamera() { return kamera; }, get tuval() { return renderer.domElement; },
   };
 })();
