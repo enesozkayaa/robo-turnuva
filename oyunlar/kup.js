@@ -1,0 +1,380 @@
+// =============================================================
+// Robo Turnuva - mini oyun: KÜP HAFIZASI
+// Ortada 3x3x3 (27 küçük küp) bir küp. Her tur örnek küpten görünür yerlerden birkaç küp eksiltilir:
+// 5 saniye ezberle → örnek kaybolur → 20 saniyede kendi küpünde aynı küpleri sil (tıkla/dokun).
+// Yanlış yapanı yukarıdan inen lazer taret vurur. Eksik sayısı her tur artar: 3, 4, 5, 6…
+// Herkes yanılırsa kimse ölmez, aynı zorlukta yeni tur. Son kalan kazanır.
+//
+// Online: kurallar odayı açanda (kanal.evMi). Ev turu yollar, herkes kendi küpünü kendi ekranında kurar
+// ve her değişikliği eve gönderir; süre bitince ev değerlendirir ve sonucu yollar.
+// Mesajlar: ev → herkes { t: 'tur', no, eksik: [..], goster, kur }  { t: 'sonuc', dogru: [id], olen: [id], hedef }  { t: 'bitti', ... }
+//           oyuncu → ev { t: 'cevap', no, eksik: [..], bitti }
+// =============================================================
+
+(() => {
+  const GOSTER_SN = 5, KUR_SN = 20, SONUC_SN = 4, ILK_EKSIK = 3;
+  const TAM_SN = 1.3;                // önce tam küp görünür, sonra eksilecekler birden fırlar
+  const K = 0.82, ARA = 0.05;        // küçük küp boyu, aralık
+  const MERKEZ_Y = 1.9;
+  const no = (x, y, z) => x + 3 * y + 9 * z;
+  const xyz = n => [n % 3, Math.floor(n / 3) % 3, Math.floor(n / 9)];
+  // Görünür yüzler (kameraya bakan ön z=2, üst y=2, sağ x=2): eksiltmeler buradan seçilir
+  const GORUNUR = Array.from({ length: 27 }, (_, n) => n).filter(n => { const [x, y, z] = xyz(n); return x === 2 || y === 2 || z === 2; });
+  const ayni = (a, b) => a.length === b.length && [...a].sort((p, q) => p - q).every((v, i) => v === [...b].sort((p, q) => p - q)[i]);
+
+  function kupGrubu(renk, saydam = false) {
+    const g = new THREE.Group();
+    const geo = new THREE.BoxGeometry(K, K, K);
+    const kenarGeo = new THREE.EdgesGeometry(geo);
+    const parcalar = Array.from({ length: 27 }, (_, n) => {
+      const [x, y, z] = xyz(n);
+      const p = new THREE.Group();
+      p.position.set((x - 1) * (K + ARA), (y - 1) * (K + ARA), (z - 1) * (K + ARA));
+      p.userData.yer = p.position.clone();
+      const mal = new THREE.MeshStandardMaterial({ color: renk, metalness: 0.3, roughness: 0.4, emissive: renk, emissiveIntensity: 0.15, transparent: saydam, opacity: saydam ? 0.9 : 1 });
+      const m = new THREE.Mesh(geo, mal); m.castShadow = true; m.userData.n = n;
+      const kenar = new THREE.LineSegments(kenarGeo, new THREE.LineBasicMaterial({ color: 0x0b0d1f }));
+      // Silinen küpün yerinde soluk hayalet (tıklayınca geri gelir)
+      const hayalet = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: renk, transparent: true, opacity: 0.08, depthWrite: false }));
+      hayalet.userData.n = n; hayalet.visible = false;
+      hayalet.scale.setScalar(0.6);   // küçük: arkasındaki küpe tıklamayı engellemesin
+      const hKenar = new THREE.LineSegments(kenarGeo, new THREE.LineBasicMaterial({ color: renk, transparent: true, opacity: 0.35 }));
+      hKenar.visible = false;
+      p.add(m, kenar, hayalet, hKenar);
+      g.add(p);
+      return { p, m, kenar, hayalet, hKenar };
+    });
+    return {
+      g, parcalar,
+      ciz(eksik, hayaletGoster = false) {
+        const s = new Set(eksik);
+        parcalar.forEach((q, n) => {
+          const yok = s.has(n);
+          q.m.visible = q.kenar.visible = !yok;
+          q.hayalet.visible = q.hKenar.visible = yok && hayaletGoster;
+        });
+      },
+    };
+  }
+
+  Salon.oyunEkle({
+    id: 'kup',
+    ad: 'Küp Hafızası',
+    ikon: '🧊',
+    ozet: 'Örnek küpü 5 saniye ezberle, 20 saniyede aynısını yap! Yapamayanı lazer vurur.',
+    kurallar: [
+      'Ortada 3×3×3 bir küp var (27 küçük küp). Her turda örnek önce tam görünür, sonra <b>birkaç küp birden fırlayıp çıkar</b>.',
+      `Örneği <b>${GOSTER_SN} saniye</b> ezberle. Sonra örnek kaybolur ve <b>${KUR_SN} saniyede</b> kendi küpünde aynı küpleri sil.`,
+      'Silmek için küpe <b>tıkla / dokun</b>. Yanlış sildiysen soluk hayalet küpe tıkla, geri gelir. <b>Sürükleyerek</b> küpü çevirebilirsin.',
+      'Süre bitince küpün örnekle aynı değilse yukarıdan inen <b>lazer taret</b> seni vurur!',
+      `Eksik sayısı her tur artar: <b>${ILK_EKSIK} → ${ILK_EKSIK + 1} → ${ILK_EKSIK + 2}…</b> Herkes yanılırsa kimse ölmez. Son kalan kazanır.`,
+    ],
+    baslat,
+  });
+
+  function baslat(b) {
+    const { kanal } = b;
+    Kontrol.ac(false);
+    Cekirdek.kameraAyarla(4.9, 0.72);
+    const grup = new THREE.Group();
+    Cekirdek.sahne.add(grup);
+
+    // ---------- Sahne: kürsü, robotlar, taret ----------
+    const kursu = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 2.1, 0.5, 40), new THREE.MeshStandardMaterial({ color: 0x23263a, metalness: 0.7, roughness: 0.35 }));
+    kursu.position.y = 0.25; kursu.receiveShadow = true;
+    grup.add(kursu);
+    const halka = new THREE.Mesh(new THREE.TorusGeometry(1.95, 0.05, 8, 64), new THREE.MeshBasicMaterial({ color: 0x2ee6ff }));
+    halka.rotation.x = Math.PI / 2; halka.position.y = 0.5; grup.add(halka);
+    const zemin = new THREE.Mesh(new THREE.CircleGeometry(9, 64), new THREE.MeshStandardMaterial({ color: 0x15182c, metalness: 0.4, roughness: 0.7 }));
+    zemin.rotation.x = -Math.PI / 2; zemin.receiveShadow = true; grup.add(zemin);
+
+    const oyuncular = b.oyuncular.map(o => ({ ...o, canli: true }));
+    const ben = oyuncular.find(o => o.id === b.benId);
+    const R = {};
+    oyuncular.forEach((o, i) => {
+      // Karşılıklı: ikisi küpün solunda, ikisi sağında (birbirine bakar)
+      const a = [Math.PI - 0.38, -0.38, Math.PI + 0.38, 0.38][i % 4];
+      const r = Cekirdek.robotYap(o.renk, o.id === b.benId ? `${o.ad} (sen)` : o.ad, { silahsiz: true });
+      r.grup.scale.setScalar(1.1);
+      const x = Math.cos(a) * 4.6, z = Math.sin(a) * 4.6;
+      r.konum(x, z); r.yon(Math.atan2(-z, -x));
+      const ped = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.7, 0.12, 24), new THREE.MeshStandardMaterial({ color: o.renk, emissive: o.renk, emissiveIntensity: 0.4 }));
+      ped.position.set(x, 0.06, z);
+      grup.add(ped, r.grup);
+      R[o.id] = { r, x, z, ped };
+    });
+    const taret = new THREE.Group();
+    const govde = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 0.6, 16), new THREE.MeshStandardMaterial({ color: 0x3a3f60, metalness: 0.8, roughness: 0.3 }));
+    const namlu = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, 1.1, 12), new THREE.MeshStandardMaterial({ color: 0x23263a, metalness: 0.8 }));
+    namlu.rotation.z = Math.PI / 2; namlu.position.set(0.6, -0.2, 0);
+    const goz = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), new THREE.MeshBasicMaterial({ color: 0xff2030 }));
+    goz.position.set(1.15, -0.2, 0);
+    const kablo = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 6, 8), new THREE.MeshStandardMaterial({ color: 0x23263a }));
+    kablo.position.y = 3.3;
+    taret.add(govde, namlu, goz, kablo);
+    taret.position.set(0, 12, 0);
+    grup.add(taret);
+
+    // ---------- Küpler: örnek (sarı) ve benim küpüm ----------
+    const ornek = kupGrubu(0xffd23b);
+    ornek.g.position.y = MERKEZ_Y;
+    const benim = kupGrubu(new THREE.Color(ben.renk).getHex());
+    benim.g.position.y = MERKEZ_Y;
+    benim.g.visible = false;
+    grup.add(ornek.g, benim.g);
+    let donus = -0.55, hedefDonus = -0.55;   // küpün y ekseninde dönüşü (üç yüz görünsün)
+
+    // ---------- Durum ----------
+    let faz = 'bekle', fazBitis = 0, turNo = 0, hedef = [], benimEksik = [], bitirdim = false, durdu = false, sonSn = null;
+    const simdi = () => performance.now() / 1000;
+    const dugmeler = document.createElement('div');
+    dugmeler.id = 'kupDugmeler';
+    dugmeler.innerHTML = '<button data-k="geri" class="ikinci">↩ Geri al</button><button data-k="sifir" class="ikinci">🔄 Sıfırla</button><button data-k="bitti">✅ Bitti</button>';
+    dugmeler.hidden = true;
+    document.body.appendChild(dugmeler);
+    const gecmis = [];
+    function gonder() { kanal.evaGonder({ t: 'cevap', no: turNo, eksik: benimEksik, bitti: bitirdim }); }
+    dugmeler.addEventListener('pointerdown', e => {
+      const k = e.target.closest('[data-k]')?.dataset.k;
+      if (!k || faz !== 'kur' || !ben.canli) return;
+      e.preventDefault(); e.stopPropagation();
+      if (k === 'geri' && gecmis.length) { benimEksik = gecmis.pop(); bitirdim = false; }
+      else if (k === 'sifir') { gecmis.push([...benimEksik]); benimEksik = []; bitirdim = false; }
+      else if (k === 'bitti') { bitirdim = !bitirdim; Ses.din(); }
+      benim.ciz(benimEksik, true);
+      dugmeCiz();
+      gonder();
+    });
+    function dugmeCiz() {
+      dugmeler.hidden = faz !== 'kur' || !ben.canli;
+      dugmeler.querySelector('[data-k="bitti"]').textContent = bitirdim ? '✏️ Düzenle' : '✅ Bitti';
+      b.hud.ipucu(faz === 'kur' && ben.canli ? `Silinen: ${benimEksik.length} küp` : '');
+    }
+
+    // Tıkla: küp sil / hayalete tıkla: geri koy. Sürükle: döndür.
+    const isin = new THREE.Raycaster();
+    let basili = null;
+    const alan = Cekirdek.tuval;
+    const ekranNoktasi = e => { const r = alan.getBoundingClientRect(); return { x: ((e.clientX - r.left) / r.width) * 2 - 1, y: -((e.clientY - r.top) / r.height) * 2 + 1 }; };
+    const bas = e => { if (e.target !== alan) return; basili = { x: e.clientX, y: e.clientY, d0: hedefDonus, surukle: false }; };
+    const surukle = e => {
+      if (!basili) return;
+      const dx = e.clientX - basili.x;
+      if (Math.abs(dx) > 8) basili.surukle = true;
+      if (basili.surukle) hedefDonus = basili.d0 + dx * 0.012;
+    };
+    const birak = e => {
+      if (!basili) return;
+      const tik = !basili.surukle;
+      basili = null;
+      if (!tik || faz !== 'kur' || !ben.canli || bitirdim) return;
+      isin.setFromCamera(ekranNoktasi(e), Cekirdek.kamera);
+      const hedefler = [];
+      benim.parcalar.forEach(q => { if (q.m.visible) hedefler.push(q.m); if (q.hayalet.visible) hedefler.push(q.hayalet); });
+      const vur = isin.intersectObjects(hedefler, false)[0];
+      if (!vur) return;
+      const n = vur.object.userData.n;
+      gecmis.push([...benimEksik]);
+      benimEksik = benimEksik.includes(n) ? benimEksik.filter(v => v !== n) : [...benimEksik, n];
+      Ses.tik();
+      benim.ciz(benimEksik, true);
+      dugmeCiz();
+      gonder();
+    };
+    window.addEventListener('pointerdown', bas);
+    window.addEventListener('pointermove', surukle);
+    window.addEventListener('pointerup', birak);
+
+    function hudOyuncular(bitenler = new Set()) {
+      b.hud.oyuncular(oyuncular.map(o => ({ ...o, ben: o.id === b.benId, ek: !o.canli ? '💀' : bitenler.has(o.id) ? '✅' : '' })));
+    }
+    hudOyuncular();
+
+    // ---------- Herkeste: tur akışı ----------
+    function turGeldi(m) {
+      turNo = m.no; hedef = m.eksik; benimEksik = []; bitirdim = false; gecmis.length = 0;
+      faz = 'goster';
+      hedefDonus = -0.55;
+      ornek.g.visible = true; benim.g.visible = false;
+      // Önce tam küp; sonra eksilecek parçalar birden fırlayıp kaybolur, ezberleme o an başlar
+      fazBitis = simdi() + TAM_SN + GOSTER_SN;
+      ornek.parcalar.forEach(q => { q.p.position.copy(q.p.userData.yer); q.p.scale.setScalar(1); });
+      ornek.ciz([]);
+      ornek.g.scale.setScalar(0.01);
+      Cekirdek.animasyon(0.35, t => ornek.g.scale.setScalar(t));
+      Ses.din(true);
+      b.hud.bilgi(`🧠 Tur ${m.no}: dikkat! ${hedef.length} küp birazdan çıkacak…`);
+      const turBu = m.no;
+      setTimeout(() => {
+        if (durdu || turNo !== turBu) return;
+        Ses.patlama();
+        b.hud.bilgi(`🧠 ${hedef.length} küp çıktı. Ezberle!`);
+        const ucanlar = hedef.map(n => ornek.parcalar[n]);
+        Cekirdek.animasyon(0.6, t => ucanlar.forEach(q => {
+          q.p.position.copy(q.p.userData.yer).multiplyScalar(1 + t * 2.2);
+          q.p.position.y += t * 1.5;
+          q.p.scale.setScalar(1 - t * 0.9);
+        })).then(() => {
+          if (durdu || turNo !== turBu) return;
+          ucanlar.forEach(q => { q.p.position.copy(q.p.userData.yer); q.p.scale.setScalar(1); });
+          ornek.ciz(hedef);
+        });
+      }, TAM_SN * 1000);
+      taret.position.y = 12;
+      hudOyuncular();
+      dugmeCiz();
+    }
+    function kurBasla() {
+      faz = 'kur'; fazBitis = simdi() + KUR_SN;
+      hedefDonus = -0.55;
+      ornek.g.visible = false;
+      benim.g.visible = ben.canli;
+      benim.ciz([], true);
+      Ses.gizlen();
+      b.hud.bilgi(ben.canli ? '🔨 Şimdi aynısını yap: eksik küplere tıkla!' : '👀 Diğerleri küpü yapıyor…');
+      dugmeCiz();
+      if (ben.canli) gonder();
+    }
+    function sonucGeldi(m) {
+      faz = 'sonuc';
+      dugmeCiz();
+      // Örnek tekrar görünür, benimki yanında
+      ornek.g.visible = true; ornek.ciz(m.hedef);
+      benim.g.visible = false;
+      const benYanlis = m.olen.includes(b.benId) || (m.yanlis || []).includes(b.benId);
+      b.hud.bilgi(m.hepsiYanlis ? '😅 Herkes yanıldı! Kimse ölmedi, tur tekrar.' : m.olen.length ? (benYanlis ? '💥 Küpün yanlıştı!' : `🎯 Doğru! Yanlış yapanlar: ${m.olen.map(id => oyuncular.find(o => o.id === id).ad).join(', ')}`) : '🎉 Herkes doğru yaptı!', benYanlis);
+      if (m.dogru.includes(b.benId)) Ses.kazanma();
+      // Taret iner ve yanlış yapanları sırayla vurur
+      Cekirdek.animasyon(0.8, t => { taret.position.y = 12 - t * 7.5; });
+      m.olen.forEach((id, k) => setTimeout(() => {
+        if (durdu) return;
+        const h = R[id];
+        taret.rotation.y = -Math.atan2(h.z, h.x);
+        // Taretin namlusundan robota çapraz inen lazer
+        const a3 = new THREE.Vector3(Math.cos(Math.atan2(h.z, h.x)) * 1.15, taret.position.y - 0.2, Math.sin(Math.atan2(h.z, h.x)) * 1.15);
+        const b3 = new THREE.Vector3(h.x, 0.9, h.z);
+        const L = a3.distanceTo(b3);
+        const isinG = { grup: new THREE.Group() };
+        const ic = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, L, 8), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true }));
+        const dis = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, L, 10), new THREE.MeshBasicMaterial({ color: 0xff2040, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }));
+        isinG.grup.add(ic, dis);
+        isinG.grup.position.copy(a3).lerp(b3, 0.5);
+        isinG.grup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b3.clone().sub(a3).normalize());
+        isinG.opaklik = o => { ic.material.opacity = o; dis.material.opacity = 0.5 * o; };
+        grup.add(isinG.grup);
+        Ses.lazer();
+        setTimeout(() => { Cekirdek.patlama(h.x, 0.9, h.z, oyuncular.find(o => o.id === id).renk); Ses.patlama(); h.r.goster(false); if (id === b.benId) b.hud.perde('flas'); }, 150);
+        Cekirdek.animasyon(0.5, t => isinG.opaklik(1 - t)).then(() => grup.remove(isinG.grup));
+      }, 900 + k * 600));
+      m.olen.forEach(id => { oyuncular.find(o => o.id === id).canli = false; });
+      setTimeout(() => { if (!durdu) { hudOyuncular(); Cekirdek.animasyon(0.8, t => { taret.position.y = 4.5 + t * 7.5; }); } }, 900 + m.olen.length * 600 + 300);
+    }
+
+    kanal.dinle(m => {
+      if (durdu) return;
+      if (m.t === 'tur') turGeldi(m);
+      else if (m.t === 'sonuc') sonucGeldi(m);
+      else if (m.t === 'bitenler') hudOyuncular(new Set(m.ids));
+      else if (m.t === 'bitti') {
+        faz = 'bitti';
+        dugmeCiz();
+        const k = oyuncular.find(o => o.id === m.kazanan);
+        b.hud.buyuk(k ? `🏆 ${k.ad}` : '🤝 BERABERE', '');
+        setTimeout(() => { if (!durdu) b.bitti({ kazanan: m.kazanan, siralama: m.siralama, aciklama: k ? 'Küpü en iyi o ezberledi!' : '' }); }, 1500);
+      }
+    });
+
+    // ---------- Sadece ev: turlar, botlar, değerlendirme ----------
+    let ev = null;
+    if (kanal.evMi) {
+      ev = { tur: 0, eksik: ILK_EKSIK, cevap: {}, zaman: [], olumSira: 0 };
+      oyuncular.forEach(o => { o.beceri = 0.75 + Math.random() * 0.25; });
+      const yeniTur = () => {
+        if (durdu) return;
+        ev.tur++;
+        // Görünür küplerden rastgele seç
+        const havuz = [...GORUNUR].sort(() => Math.random() - 0.5);
+        ev.hedef = havuz.slice(0, Math.min(ev.eksik, havuz.length));
+        ev.cevap = {}; ev.bitenler = new Set();
+        kanal.yayinla({ t: 'tur', no: ev.tur, eksik: ev.hedef });
+        // Botlar: zorluk arttıkça yanılma ihtimali artar
+        oyuncular.filter(o => o.canli && o.bot).forEach(o => {
+          const dogruMu = Math.random() < Math.max(0.15, Math.min(0.97, o.beceri * (1.12 - 0.075 * ev.hedef.length)));
+          let c = [...ev.hedef];
+          if (!dogruMu) {
+            // Bir küpü karıştır
+            const yanlis = GORUNUR.filter(n => !c.includes(n));
+            if (Math.random() < 0.5 && c.length > 1) c.pop();
+            c.push(yanlis[Math.floor(Math.random() * yanlis.length)]);
+          }
+          ev.cevap[o.id] = c;
+          ev.zaman.push(setTimeout(() => { if (!durdu) { ev.bitenler.add(o.id); kanal.yayinla({ t: 'bitenler', ids: [...ev.bitenler] }); } }, (TAM_SN + GOSTER_SN + 4 + Math.random() * 12) * 1000));
+        });
+        ev.zaman.push(setTimeout(degerlendir, (TAM_SN + GOSTER_SN + KUR_SN + 0.6) * 1000));
+      };
+      const degerlendir = () => {
+        if (durdu) return;
+        const canli = oyuncular.filter(o => o.canli);
+        const dogru = canli.filter(o => ayni(ev.cevap[o.id] || [], ev.hedef)).map(o => o.id);
+        const yanlis = canli.filter(o => !dogru.includes(o.id)).map(o => o.id);
+        const hepsiYanlis = dogru.length === 0;
+        const olen = hepsiYanlis ? [] : yanlis;
+        olen.forEach(id => { const o = oyuncular.find(p => p.id === id); o.olumSira = ++ev.olumSira; o.olumTur = ev.tur; });
+        kanal.yayinla({ t: 'sonuc', dogru, olen, yanlis, hepsiYanlis, hedef: ev.hedef });
+        if (!hepsiYanlis) ev.eksik++;
+        const kalan = canli.filter(o => !olen.includes(o.id));
+        ev.zaman.push(setTimeout(() => {
+          if (durdu) return;
+          if (kalan.length <= 1) {
+            const sirali = [...oyuncular].sort((a, c) => (c.canli && !olen.includes(c.id)) - (a.canli && !olen.includes(a.id)) || (c.olumSira || 99) - (a.olumSira || 99));
+            kanal.yayinla({
+              t: 'bitti', kazanan: kalan[0]?.id ?? null,
+              siralama: sirali.map(o => ({ id: o.id, neden: kalan.includes(o) ? `🏆 ${ev.tur} tur doğru yaptı` : `💥 ${o.olumTur}. turda yanıldı` })),
+            });
+          } else yeniTur();
+        }, (SONUC_SN + olen.length * 0.6) * 1000));
+      };
+      kanal.evDinle((m, id) => {
+        if (m.t !== 'cevap' || m.no !== ev.tur || !Array.isArray(m.eksik)) return;
+        ev.cevap[id] = m.eksik.filter(n => Number.isInteger(n) && n >= 0 && n < 27);
+        if (m.bitti) ev.bitenler.add(id); else ev.bitenler.delete(id);
+        kanal.yayinla({ t: 'bitenler', ids: [...ev.bitenler] });
+      });
+      ev.koptu = id => { const o = oyuncular.find(p => p.id === id); if (o) o.bot = true; };
+      ev.zaman.push(setTimeout(yeniTur, 1200));
+    }
+
+    // ---------- Her kare ----------
+    const kaldir = Cekirdek.guncelle((dt, t) => {
+      if (durdu) return false;
+      donus += (hedefDonus - donus) * Math.min(1, dt * 8);
+      ornek.g.rotation.y = benim.g.rotation.y = donus;
+      ornek.g.position.y = benim.g.position.y = MERKEZ_Y + Math.sin(t * 1.5) * 0.05;
+      if (faz === 'goster' && simdi() >= fazBitis) kurBasla();
+      if (faz === 'goster' || faz === 'kur') {
+        const sn = Math.max(0, Math.ceil(fazBitis - simdi()));
+        if (sn !== sonSn) { sonSn = sn; if (sn <= 3 && sn > 0) Ses.tik(); }
+        b.hud.buyuk(faz === 'goster' ? '🧠 EZBERLE' : '🔨 YAP', String(sn), sn <= 3 ? 'ates yanda' : 'yanda', false);
+      } else if (faz === 'sonuc') b.hud.buyuk('🎯 SONUÇ', '', 'yanda', false);
+      else if (faz === 'bekle') b.hud.buyuk('HAZIR', '', 'yanda', false);
+    });
+
+    b.hud.bilgi('⏳ Hazırlanıyor…');
+
+    return {
+      durdur() {
+        durdu = true;
+        kaldir();
+        if (ev) ev.zaman.forEach(clearTimeout);
+        window.removeEventListener('pointerdown', bas);
+        window.removeEventListener('pointermove', surukle);
+        window.removeEventListener('pointerup', birak);
+        dugmeler.remove();
+        Object.values(R).forEach(x => x.r.sil());
+        Cekirdek.sahne.remove(grup);
+        grup.traverse(n => { n.geometry?.dispose(); });
+      },
+      koptu(id) { ev?.koptu(id); },
+    };
+  }
+})();

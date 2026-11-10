@@ -4,10 +4,10 @@
 // yoksa kaydedilmiş kopya açılır. Oyunu güncelleyip yüklerken ONBELLEK numarasını 1 artır.
 // =============================================================
 
-const ONBELLEK = 'robo-turnuva-v35';
+const ONBELLEK = 'robo-turnuva-v37';
 const DOSYALAR = [
   './', 'index.html', 'style.css', 'ses.js', 'cekirdek.js', 'kontrol.js', 'ag.js', 'salon.js',
-  'oyunlar/lazer-motor.js', 'oyunlar/lazer.js', 'oyunlar/kursun-motor.js', 'oyunlar/kursun.js', 'oyunlar/zaman.js', 'oyunlar/bezelye.js', 'oyunlar/karo-motor.js', 'oyunlar/karo.js', 'oyunlar/kapi-motor.js', 'oyunlar/kapi.js', 'oyunlar/ev-motor.js', 'oyunlar/ev.js', 'oyunlar/forklift-motor.js', 'oyunlar/forklift.js', 'oyunlar/mayin-motor.js', 'oyunlar/mayin.js',
+  'oyunlar/lazer-motor.js', 'oyunlar/lazer.js', 'oyunlar/kursun-motor.js', 'oyunlar/kursun.js', 'oyunlar/zaman.js', 'oyunlar/bezelye.js', 'oyunlar/karo-motor.js', 'oyunlar/karo.js', 'oyunlar/kapi-motor.js', 'oyunlar/kapi.js', 'oyunlar/ev-motor.js', 'oyunlar/ev.js', 'oyunlar/forklift-motor.js', 'oyunlar/forklift.js', 'oyunlar/mayin-motor.js', 'oyunlar/mayin.js', 'oyunlar/kup.js',
   'manifest.webmanifest', 'ikonlar/ikon-192.png', 'ikonlar/ikon-512.png',
 ];
 
