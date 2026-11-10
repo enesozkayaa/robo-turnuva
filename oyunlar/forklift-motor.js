@@ -1,7 +1,7 @@
 // =============================================================
 // Robo Turnuva - Kutu Kapmaca: kurallar (ekran yok, sadece hesap)
 // Kare platform, her köşede bir oyuncunun bölgesi. Herkes forklift sürer.
-// Her 5 saniyede ortaya yukarıdan 2 kutu düşer. Kutuyu çatalla al (eylem), kendi bölgene götür;
+// Her 10 saniyede ortaya yukarıdan 2 kutu düşer. Kutuyu çatalla al (eylem), kendi bölgene götür;
 // bölgen yeşil yanınca (kutuyla içindeyken) bırak (eylem). Rakibin bölgesinden kutu çalabilirsin.
 // Kutu taşıyan forklifte hızlı çarpılırsa kutu düşer. Süre bitince bölgesinde en çok kutu olan kazanır.
 // Sabit adımlı simülasyon: adim(d, dt, girdiler). Tarayıcıda ve Node'da (test) çalışır.
@@ -14,7 +14,7 @@ const ForkliftMotor = (() => {
   const KUTU = 0.34;                   // kutu yarı kenarı
   const HIZ = 4.6, DONUS = 4.2;        // ileri hız, dönüş hızı (rad/sn)
   const CATAL = 1.0;                   // çatalın ucu forkliftin merkezinden ne kadar önde
-  const DUSME_SN = 1.1, DUSUS_ARA = 5, DUSUS_ADET = 2;
+  const DUSME_SN = 1.1, DUSUS_ARA = 10, DUSUS_ADET = 2;
   const BASLANGIC = 3;
   // Bölgeler: köşe merkezleri (oyuncu sırasına göre)
   const BOLGE = [[-1, -1], [1, 1], [1, -1], [-1, 1]].map(([sx, sz]) => ({ cx: sx * (P - Z / 2), cz: sz * (P - Z / 2) }));
@@ -24,7 +24,7 @@ const ForkliftMotor = (() => {
   function yeni(oyuncular, sure = 90) {
     return {
       t: -BASLANGIC, sure, kalan: sure, bitti: false, kazanan: null,
-      // Açılışta ortada 4 kutu hazır durur; yukarıdan düşmeler 5 saniye sonra başlar
+      // Açılışta ortada 4 kutu hazır durur; yukarıdan düşmeler 10 saniye sonra başlar
       kutular: [[-0.9, -0.9], [0.9, 0.9], [0.9, -0.9], [-0.9, 0.9]].map(([x, z], i) => ({ id: i + 1, x, z, y: 0, tasiyan: null })),
       sonrakiKutu: 5, dususSayac: DUSUS_ARA,
       oyuncular: oyuncular.map((o, i) => {
