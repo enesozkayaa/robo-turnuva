@@ -2,7 +2,7 @@
 // Robo Turnuva - mini oyun: KÜP HAFIZASI
 // Ortada 3x3x3 (27 küçük küp) bir küp. Her tur örnek küpten görünür yerlerden birkaç küp eksiltilir:
 // 5 saniye ezberle → örnek kaybolur → 10 saniyede kendi küpünde aynı küpleri sil (tıkla/dokun).
-// Yanlış yapanı yukarıdan inen lazer taret vurur. Eksik sayısı her tur artar: 3, 4, 5, 6…
+// Yanlış yapanı yukarıdan inen lazer taret vurur. Eksik sayısı her tur artar: 2, 3, 4, 5…
 // Herkes yanılırsa kimse ölmez, aynı zorlukta yeni tur. Son kalan kazanır.
 //
 // Online: kurallar odayı açanda (kanal.evMi). Ev turu yollar, herkes kendi küpünü kendi ekranında kurar
@@ -12,10 +12,10 @@
 // =============================================================
 
 (() => {
-  const GOSTER_SN = 5, KUR_SN = 10, SONUC_SN = 4, ILK_EKSIK = 3;
+  const GOSTER_SN = 5, KUR_SN = 10, SONUC_SN = 4, ILK_EKSIK = 2;
   const TAM_SN = 1.3;                // önce tam küp görünür, sonra eksilecekler birden fırlar
   const K = 0.82, ARA = 0.05;        // küçük küp boyu, aralık
-  const MERKEZ_Y = 1.9;
+  const MERKEZ_Y = 2.6;               // küp yüksekte: her yöne dönünce kürsüye/zemine değmesin
   const no = (x, y, z) => x + 3 * y + 9 * z;
   const xyz = n => [n % 3, Math.floor(n / 3) % 3, Math.floor(n / 9)];
   // Görünür yüzler (kameraya bakan ön z=2, üst y=2, sağ x=2): eksiltmeler buradan seçilir
@@ -61,7 +61,7 @@
     id: 'kup',
     ad: 'Küp Hafızası',
     ikon: '🧊',
-    ozet: 'Örnek küpü 5 saniye ezberle, 20 saniyede aynısını yap! Yapamayanı lazer vurur.',
+    ozet: 'Örnek küpü 5 saniye ezberle, 10 saniyede aynısını yap! Yapamayanı lazer vurur.',
     kurallar: [
       'Ortada 3×3×3 bir küp var (27 küçük küp). Her turda örnek önce tam görünür, sonra <b>birkaç küp birden fırlayıp çıkar</b>.',
       `Örneği <b>${GOSTER_SN} saniye</b> ezberle. Sonra örnek kaybolur ve <b>${KUR_SN} saniyede</b> kendi küpünde aynı küpleri sil.`,
@@ -76,15 +76,19 @@
     const { kanal } = b;
     Kontrol.ac(false);
     Cekirdek.kameraAyarla(4.9, 0.72);
+    Cekirdek.kameraOdak(0, 0.6, 5.1, 0.62, 1.3);   // biraz yukarıya bak: küp ortada kalsın
     const grup = new THREE.Group();
     Cekirdek.sahne.add(grup);
 
     // ---------- Sahne: kürsü, robotlar, taret ----------
-    const kursu = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 2.1, 0.5, 40), new THREE.MeshStandardMaterial({ color: 0x23263a, metalness: 0.7, roughness: 0.35 }));
+    const kursu = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.4, 0.5, 40), new THREE.MeshStandardMaterial({ color: 0x23263a, metalness: 0.7, roughness: 0.35 }));
     kursu.position.y = 0.25; kursu.receiveShadow = true;
     grup.add(kursu);
     const halka = new THREE.Mesh(new THREE.TorusGeometry(1.95, 0.05, 8, 64), new THREE.MeshBasicMaterial({ color: 0x2ee6ff }));
-    halka.rotation.x = Math.PI / 2; halka.position.y = 0.5; grup.add(halka);
+    halka.rotation.x = Math.PI / 2; halka.position.y = 0.5; halka.scale.setScalar(0.62); grup.add(halka);
+    // Küpün altında yerden yükselen ışık sütunu (küp havada süzülür)
+    const sutun = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.1, 1.2, 32, 1, true), new THREE.MeshBasicMaterial({ color: 0x2ee6ff, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
+    sutun.position.y = 1.1; grup.add(sutun);
     const zemin = new THREE.Mesh(new THREE.CircleGeometry(9, 64), new THREE.MeshStandardMaterial({ color: 0x15182c, metalness: 0.4, roughness: 0.7 }));
     zemin.rotation.x = -Math.PI / 2; zemin.receiveShadow = true; grup.add(zemin);
 
@@ -104,14 +108,17 @@
       R[o.id] = { r, x, z, ped };
     });
     const taret = new THREE.Group();
-    const govde = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 0.6, 16), new THREE.MeshStandardMaterial({ color: 0x3a3f60, metalness: 0.8, roughness: 0.3 }));
-    const namlu = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, 1.1, 12), new THREE.MeshStandardMaterial({ color: 0x23263a, metalness: 0.8 }));
+    const govde = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 0.6, 16), new THREE.MeshStandardMaterial({ color: 0xdfe6f5, metalness: 0.3, roughness: 0.35, emissive: 0x5a6a90, emissiveIntensity: 0.6 }));
+    const namlu = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, 1.1, 12), new THREE.MeshStandardMaterial({ color: 0xffb020, metalness: 0.3, roughness: 0.4, emissive: 0xff8a00, emissiveIntensity: 0.55 }));
     namlu.rotation.z = Math.PI / 2; namlu.position.set(0.6, -0.2, 0);
-    const goz = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), new THREE.MeshBasicMaterial({ color: 0xff2030 }));
+    const goz = new THREE.Mesh(new THREE.SphereGeometry(0.17, 12, 10), new THREE.MeshBasicMaterial({ color: 0xff2030 }));
     goz.position.set(1.15, -0.2, 0);
-    const kablo = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 6, 8), new THREE.MeshStandardMaterial({ color: 0x23263a }));
+    const kablo = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 6, 8), new THREE.MeshStandardMaterial({ color: 0x9aa6c4, emissive: 0x3a4460, emissiveIntensity: 0.5 }));
     kablo.position.y = 3.3;
-    taret.add(govde, namlu, goz, kablo);
+    // Parlak şerit: taret karanlıkta da seçilsin
+    const serit = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.05, 8, 32), new THREE.MeshBasicMaterial({ color: 0x2ee6ff }));
+    serit.rotation.x = Math.PI / 2; serit.position.y = -0.2;
+    taret.add(govde, namlu, goz, kablo, serit);
     taret.position.set(0, 12, 0);
     grup.add(taret);
 
@@ -122,8 +129,11 @@
     benim.g.position.y = MERKEZ_Y;
     benim.g.visible = false;
     grup.add(ornek.g, benim.g);
-    let donus = -0.55, hedefDonus = -0.55, miniKupler = [];
-    let egim = 0, hedefEgim = 0;   // yukarı-aşağı döndürme   // küpün y ekseninde dönüşü (üç yüz görünsün)
+    // Küpün dönüşü: her yöne, durmadan (sürükledikçe dünya eksenlerine göre döner)
+    const BAS_Q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -0.55, 0));
+    const kupQ = BAS_Q.clone(), hedefQ = BAS_Q.clone(), _qY = new THREE.Quaternion(), _qX = new THREE.Quaternion();
+    const EKSEN_Y = new THREE.Vector3(0, 1, 0), EKSEN_X = new THREE.Vector3(1, 0, 0);
+    let miniKupler = [];   // küpün y ekseninde dönüşü (üç yüz görünsün)
 
     // ---------- Durum ----------
     let faz = 'bekle', fazBitis = 0, turNo = 0, hedef = [], benimEksik = [], bitirdim = false, durdu = false, sonSn = null;
@@ -157,15 +167,18 @@
     let basili = null;
     const alan = Cekirdek.tuval;
     const ekranNoktasi = e => { const r = alan.getBoundingClientRect(); return { x: ((e.clientX - r.left) / r.width) * 2 - 1, y: -((e.clientY - r.top) / r.height) * 2 + 1 }; };
-    const bas = e => { if (e.target !== alan) return; basili = { x: e.clientX, y: e.clientY, d0: hedefDonus, e0: hedefEgim, surukle: false }; };
+    const bas = e => { if (e.target !== alan) return; basili = { x: e.clientX, y: e.clientY, sonX: e.clientX, sonY: e.clientY, surukle: false }; };
     const surukle = e => {
       if (!basili) return;
-      const dx = e.clientX - basili.x, dy = e.clientY - basili.y;
-      if (Math.hypot(dx, dy) > 8) basili.surukle = true;
+      if (Math.hypot(e.clientX - basili.x, e.clientY - basili.y) > 8) basili.surukle = true;
       if (basili.surukle) {
-        hedefDonus = basili.d0 + dx * 0.012;
-        hedefEgim = Math.max(-1.3, Math.min(1.3, basili.e0 + dy * 0.012));   // yukarı-aşağı (altı da görülebilsin)
+        const dx = e.clientX - basili.sonX, dy = e.clientY - basili.sonY;
+        // Sağa-sola: dikey eksen etrafında, yukarı-aşağı: yatay eksen etrafında (sınırsız)
+        _qY.setFromAxisAngle(EKSEN_Y, dx * 0.012);
+        _qX.setFromAxisAngle(EKSEN_X, dy * 0.012);
+        hedefQ.premultiply(_qY).premultiply(_qX);
       }
+      basili.sonX = e.clientX; basili.sonY = e.clientY;
     };
     const birak = e => {
       if (!basili) return;
@@ -199,7 +212,7 @@
       turNo = m.no; hedef = m.eksik; benimEksik = []; bitirdim = false; gecmis.length = 0;
       miniKupler.forEach(k => grup.remove(k.g)); miniKupler = [];
       faz = 'goster';
-      hedefDonus = -0.55; hedefEgim = 0;
+      hedefQ.copy(BAS_Q);
       ornek.g.visible = true; benim.g.visible = false;
       // Önce tam küp; sonra eksilecek parçalar birden fırlayıp kaybolur, ezberleme o an başlar
       fazBitis = simdi() + TAM_SN + GOSTER_SN;
@@ -231,7 +244,7 @@
     }
     function kurBasla() {
       faz = 'kur'; fazBitis = simdi() + KUR_SN;
-      hedefDonus = -0.55; hedefEgim = 0;
+      hedefQ.copy(BAS_Q);
       ornek.g.visible = false;
       benim.g.visible = ben.canli;
       benim.ciz([], true);
@@ -263,7 +276,7 @@
         miniKupler.push(mk);
       });
       // Taret iner, herkese sırayla bakar: 2 sn tarar → doğruysa yeşil ışık, yanlışsa kırmızı ışık ve ateş
-      Cekirdek.animasyon(0.8, t => { taret.position.y = 12 - t * 7.5; });
+      Cekirdek.animasyon(0.8, t => { taret.position.y = 12 - t * 7; });
       const kontrol = [...m.dogru, ...(m.yanlis || [])].map(id => ({ id, h: R[id], dogru: m.dogru.includes(id), olecek: m.olen.includes(id) }))
         .sort((a, c) => Math.atan2(a.h.z, a.h.x) - Math.atan2(c.h.z, c.h.x));
       const isinYap3 = (h, renk, kalin) => {
@@ -331,7 +344,7 @@
         hudOyuncular();
         goz.material.color.set(0xff2030);
         Object.values(R).forEach(x => { x.ped.material.emissiveIntensity = 0.4; });
-        Cekirdek.animasyon(0.8, t => { taret.position.y = 4.5 + t * 7.5; });
+        Cekirdek.animasyon(0.8, t => { taret.position.y = 5 + t * 7; });
       }, 900 + kontrol.length * ADIM_SN * 1000 + 500);
     }
 
@@ -413,11 +426,9 @@
     // ---------- Her kare ----------
     const kaldir = Cekirdek.guncelle((dt, t) => {
       if (durdu) return false;
-      donus += (hedefDonus - donus) * Math.min(1, dt * 8);
-      egim += (hedefEgim - egim) * Math.min(1, dt * 8);
-      ornek.g.rotation.y = benim.g.rotation.y = donus;
-      ornek.g.rotation.x = benim.g.rotation.x = egim;
-      miniKupler.forEach(k => { k.g.rotation.y = donus; k.g.rotation.x = egim; });
+      kupQ.slerp(hedefQ, Math.min(1, dt * 12));
+      ornek.g.quaternion.copy(kupQ); benim.g.quaternion.copy(kupQ);
+      miniKupler.forEach(k => k.g.quaternion.copy(kupQ));
       ornek.g.position.y = benim.g.position.y = MERKEZ_Y + Math.sin(t * 1.5) * 0.05;
       if (faz === 'goster' && simdi() >= fazBitis) kurBasla();
       if (faz === 'goster' || faz === 'kur') {

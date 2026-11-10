@@ -107,8 +107,8 @@ const Cekirdek = (() => {
     boyutla();
   }
   // Kamerayı bir noktaya odakla (her karede çağrılabilir; ekran boyutunu yeniden ayarlamaz)
-  function kameraOdak(x, z, yaricap, egim = bakis.egim) {
-    bakis.merkez.set(x, 0, z); bakis.yaricap = yaricap; bakis.egim = egim;
+  function kameraOdak(x, z, yaricap, egim = bakis.egim, y = 0) {
+    bakis.merkez.set(x, y, z); bakis.yaricap = yaricap; bakis.egim = egim;
     if (renderer) kameraKonumla();
   }
   function boyutla() {
