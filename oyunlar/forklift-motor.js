@@ -24,7 +24,9 @@ const ForkliftMotor = (() => {
   function yeni(oyuncular, sure = 90) {
     return {
       t: -BASLANGIC, sure, kalan: sure, bitti: false, kazanan: null,
-      kutular: [], sonrakiKutu: 1, dususSayac: 1,
+      // Açılışta ortada 4 kutu hazır durur; yukarıdan düşmeler 5 saniye sonra başlar
+      kutular: [[-0.9, -0.9], [0.9, 0.9], [0.9, -0.9], [-0.9, 0.9]].map(([x, z], i) => ({ id: i + 1, x, z, y: 0, tasiyan: null })),
+      sonrakiKutu: 5, dususSayac: DUSUS_ARA,
       oyuncular: oyuncular.map((o, i) => {
         const b = BOLGE[i];
         return { ...o, bolge: i, x: b.cx * 0.8, z: b.cz * 0.8, a: Math.atan2(-b.cz, -b.cx), vx: 0, vz: 0, hiz: 0, kutu: null, sonEylem: -9 };

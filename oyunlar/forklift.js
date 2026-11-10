@@ -78,7 +78,7 @@
     ozet: 'Forklift sür, ortaya düşen kutuları kendi köşene taşı! Rakipten çalmak serbest.',
     kurallar: [
       'Herkes bir <b>forklift</b> sürer ve kare platformun bir köşesinde <b>kendi bölgesi</b> vardır.',
-      `Her <b>${M.DUSUS_ARA} saniyede</b> ortaya yukarıdan <b>2 kutu</b> düşer.`,
+      `Açılışta ortada <b>4 kutu</b> hazır durur. Sonra her <b>${M.DUSUS_ARA} saniyede</b> ortaya yukarıdan <b>2 kutu</b> düşer.`,
       'Kutunun önüne gel ve <b>AL</b> (boşluk / sol tık / düğme). Kendi bölgene götür: bölgen <b>yeşil</b> yanınca boş bir yere <b>BIRAK</b>. Kutular üst üste konmaz; taşıdığın kutuyla diğerlerini ileri itebilirsin.',
       'Rakibin bölgesindeki kutuyu alıp kendine götürebilirsin! Kutu taşıyana hızla çarparsan kutusunu düşürür.',
       'Süre bitince bölgesinde <b>en çok kutu</b> olan kazanır.',
