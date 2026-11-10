@@ -14,12 +14,12 @@
 (() => {
   const MODLAR = [
     { id: 'acik', ad: '👀 Yelkovan görünür', aciklama: 'Yelkovanı izle, tam zamanında durdur!', sapma: 0.12 },
-    { id: 'yari', ad: '⏳ İlk 3 saniye görünür', aciklama: 'Yelkovan 3 saniye sonra kaybolacak. Sonrasını kafandan say!', sapma: 0.32 },
+    { id: 'yari', ad: '⏳ İlk 2 saniye görünür', aciklama: 'Yelkovan 2 saniye sonra kaybolacak. Sonrasını kafandan say!', sapma: 0.32 },
     { id: 'kor', ad: '🙈 Kör mod', aciklama: 'Yelkovan hiç görünmez. 3-2-1 sonra içinden say!', sapma: 0.65 },
   ];
   const HER_MOD_SECENEK = [1, 2, 3, 4, 5];   // her moddan kaç tur (açılışta seçilir)
   const TUR_SN = 20;              // yelkovanın bir tam turu (sn)
-  const GORUNUR_SN = 3;           // yarı modda yelkovan kaç saniye görünür
+  const GORUNUR_SN = 2;           // yarı modda yelkovan kaç saniye görünür
   const HAZIR_SN = 2.6, SAYIM = 3, EN_UZUN = 30;
   const PUAN = [3, 2, 1, 0];
 
@@ -54,7 +54,7 @@
     kurallar: [
       'Her turda rastgele bir süre çıkar (ör. <b>6.53</b>): yelkovan görünür modda <b>1 ile 15</b>, diğer modlarda <b>5 ile 15 saniye</b> arası.',
       '3-2-1 (dın, dın, dın) sonra saat başlar. Süreye en yakın anda <b>⏹ DURDUR</b>\'a bas (bilgisayarda <b>boşluk</b> tuşu da olur).',
-      'Her moddan kaç tur oynanacağını açılışta seçersin (1-5). Modlar sırayla gelir: <b>1)</b> yelkovan görünür, <b>2)</b> yelkovan ilk 3 saniye görünür sonra kaybolur, <b>3)</b> kör mod: yelkovan hiç görünmez.',
+      'Her moddan kaç tur oynanacağını açılışta seçersin (1-5). Modlar sırayla gelir: <b>1)</b> yelkovan görünür, <b>2)</b> yelkovan ilk 2 saniye görünür sonra kaybolur, <b>3)</b> kör mod: yelkovan hiç görünmez.',
       'Her turda en yakın olan <b>3</b>, ikinci <b>2</b>, üçüncü <b>1</b> puan alır.',
       'Son turun sonunda en çok puanı toplayan kazanır.',
     ],
