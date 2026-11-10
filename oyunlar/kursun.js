@@ -63,22 +63,14 @@
     });
   }
 
-  // Ağır çekim kurşun: parlak çekirdek + renkli hale + arkasında iz
+  // Ağır çekim kurşun: parlak çekirdek + renkli hale (arkasında iz yok)
   function kursunYap(renk) {
     const g = new THREE.Group();
     const cekirdek = new THREE.Mesh(new THREE.CapsuleGeometry(0.12, 0.4, 4, 12), new THREE.MeshBasicMaterial({ color: 0xffffff }));
     cekirdek.rotation.z = Math.PI / 2;   // +x yönünde uzun
     const hale = new THREE.Sprite(new THREE.SpriteMaterial({ map: Cekirdek.parlamaDokusu(), color: renk, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
     hale.scale.set(1.5, 1.5, 1);
-    // İz: arkaya doğru incelen, solan koni
-    const izGeo = new THREE.ConeGeometry(0.17, 1, 10, 1, true);
-    izGeo.translate(0, -0.5, 0); izGeo.rotateZ(Math.PI / 2);   // ucu 0'da, gövdesi -x'e
-    const iz = new THREE.Mesh(izGeo, new THREE.MeshBasicMaterial({ color: renk, transparent: true, opacity: 0.6, depthWrite: false, blending: THREE.AdditiveBlending }));
-    // Matrix dalgası: kurşunun etrafında halka
-    const dalga = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.018, 6, 24), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false }));
-    dalga.rotation.y = Math.PI / 2;
-    g.add(iz, cekirdek, hale, dalga);
-    g.userData = { iz, dalga, faz: Math.random() };
+    g.add(cekirdek, hale);
     return g;
   }
 
@@ -231,13 +223,6 @@
         if (!n) { n = kursunYap(renk(k.sahip)); grup.add(n); KURSUN.set(k.k, n); n.userData.dogum = d.t; }
         n.position.set(k.x, KY, k.z);
         n.rotation.y = -Math.atan2(k.dz, k.dx);
-        // İz kurşun hızlandıkça uzar; ilk anda kısa başlar
-        const uzun = Math.min(0.9 + k.hiz * 0.3, (d.t - n.userData.dogum) * k.hiz + 0.05);
-        n.userData.iz.scale.set(Math.max(0.05, uzun), 1, 1);
-        const f = ((t * 1.6 + n.userData.faz) % 1);
-        n.userData.dalga.position.x = -f * 0.9;
-        n.userData.dalga.scale.setScalar(0.6 + f * 1.4);
-        n.userData.dalga.material.opacity = 0.5 * (1 - f);
       });
       KURSUN.forEach((n, no) => {
         if (var_.has(no)) return;

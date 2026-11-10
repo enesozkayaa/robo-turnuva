@@ -16,8 +16,8 @@ const KursunMotor = (() => {
   const BASLANGIC = 3;                                 // "hazır" geri sayımı (sn)
 
   // Kurşun hızı: yavaş başlar, her saniye artar (Matrix'ten gerçeğe)
-  const kursunHizi = t => Math.min(11, 2 + t * 0.09);
-  const atesAraligi = t => Math.max(0.85, 1.7 - t * 0.01);
+  const kursunHizi = t => Math.min(12, 3.2 + t * 0.09);
+  const atesAraligi = t => Math.max(0.7, 1.15 - t * 0.006);
   const hizKati = t => kursunHizi(t) / kursunHizi(0);
 
   const KOSELER = [[-8, -4.8], [8, 4.8], [8, -4.8], [-8, 4.8]];
