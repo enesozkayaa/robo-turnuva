@@ -1,7 +1,7 @@
 // =============================================================
 // Robo Turnuva - mini oyun: KÜP HAFIZASI
 // Ortada 3x3x3 (27 küçük küp) bir küp. Her tur örnek küpten görünür yerlerden birkaç küp eksiltilir:
-// 5 saniye ezberle → örnek kaybolur → 20 saniyede kendi küpünde aynı küpleri sil (tıkla/dokun).
+// 5 saniye ezberle → örnek kaybolur → 10 saniyede kendi küpünde aynı küpleri sil (tıkla/dokun).
 // Yanlış yapanı yukarıdan inen lazer taret vurur. Eksik sayısı her tur artar: 3, 4, 5, 6…
 // Herkes yanılırsa kimse ölmez, aynı zorlukta yeni tur. Son kalan kazanır.
 //
@@ -12,7 +12,7 @@
 // =============================================================
 
 (() => {
-  const GOSTER_SN = 5, KUR_SN = 20, SONUC_SN = 4, ILK_EKSIK = 3;
+  const GOSTER_SN = 5, KUR_SN = 10, SONUC_SN = 4, ILK_EKSIK = 3;
   const TAM_SN = 1.3;                // önce tam küp görünür, sonra eksilecekler birden fırlar
   const K = 0.82, ARA = 0.05;        // küçük küp boyu, aralık
   const MERKEZ_Y = 1.9;
@@ -308,7 +308,7 @@
             c.push(yanlis[Math.floor(Math.random() * yanlis.length)]);
           }
           ev.cevap[o.id] = c;
-          ev.zaman.push(setTimeout(() => { if (!durdu) { ev.bitenler.add(o.id); kanal.yayinla({ t: 'bitenler', ids: [...ev.bitenler] }); } }, (TAM_SN + GOSTER_SN + 4 + Math.random() * 12) * 1000));
+          ev.zaman.push(setTimeout(() => { if (!durdu) { ev.bitenler.add(o.id); kanal.yayinla({ t: 'bitenler', ids: [...ev.bitenler] }); } }, (TAM_SN + GOSTER_SN + 2 + Math.random() * 7) * 1000));
         });
         ev.zaman.push(setTimeout(degerlendir, (TAM_SN + GOSTER_SN + KUR_SN + 0.6) * 1000));
       };
