@@ -124,7 +124,7 @@
       'Tur başında herkesin yerine iyi bak: birazdan <b>5 saniye</b> herkes görünmez olacak. Sadece kendini görürsün.',
       'Bu 5 saniyede istediğin yere git ve lazerini çevir. Rakiplerin nereye kaçar, tahmin et!',
       'Süre bitince herkes görünür ve <b>lazer kime değerse o elenir</b>. Lazer ilk değdiği robotta durur.',
-      'Her 2 turda bir dış halka <b>düşer</b>. Kırmızı yanıp sönen halkanın üstünde kalırsan sen de düşersin.',
+      'Her 2 turda bir dış halka <b>düşer</b>. Hangisi olduğu önceden belli değil: görünmezliğin <b>son 1 saniyesinde</b> kırmızı yanıp söner. Hemen içeri kaçamazsan sen de düşersin!',
       'Bilgisayar: <b>WASD / ok tuşları</b> yürü, <b>fare</b> nişan. Telefon: <b>sol</b> joystick yürü, <b>sağ</b> joystick nişan.',
       'Kafeste ayakta kalan son robot kazanır.',
     ],
@@ -176,9 +176,8 @@
         ISIN[o.id].goster(false); ISIN[o.id].kalin(1); ISIN[o.id].opaklik(1);
       });
       if (ben().canli) { ISIN[b.benId].goster(true); isinCiz(b.benId); }
-      uyariVar = M.dusecekMi(d);
-      if (uyariVar) { b.hud.bilgi('⚠️ Bu turun sonunda kırmızı halka düşecek! İçeri kaç.', true); Ses.uyari(); }
-      else b.hud.bilgi(ben().canli ? '👀 Rakiplerin nerede, iyi bak! Birazdan herkes görünmez olacak.' : '💀 Elendin. Robotları izliyorsun…');
+      uyariVar = false;   // halka sadece görünmezliğin son 1 saniyesinde yanıp söner
+      b.hud.bilgi(ben().canli ? '👀 Rakiplerin nerede, iyi bak! Birazdan herkes görünmez olacak.' : '💀 Elendin. Robotları izliyorsun…');
       b.hud.ipucu(ben().canli && d.tur === 1 ? (Kontrol.dokunmatik ? 'Sol: yürü · Sağ: nişan' : 'WASD / oklar: yürü · Fare: nişan') : '');
       b.hud.buyuk(`TUR ${d.tur}`, String(Math.ceil(zaman)));
       Ses.bip();
@@ -200,7 +199,7 @@
       Ses.gizlen();
       b.hud.perde('gizli');
       b.hud.buyuk('👻 GÖRÜNMEZ', String(sonSaniye), 'gizli');
-      if (!uyariVar) b.hud.bilgi(izleyici ? '👻 Herkes görünmez. Sen hepsini görüyorsun.' : '👻 Kimse seni görmüyor! Yerini değiştir, lazerini çevir.');
+      b.hud.bilgi(izleyici ? '👻 Herkes görünmez. Sen hepsini görüyorsun.' : '👻 Kimse seni görmüyor! Yerini değiştir, lazerini çevir.');
     }
 
     async function ates() {
@@ -320,6 +319,19 @@
       } else {
         b.hud.buyuk('👻 GÖRÜNMEZ', String(sn || ''), 'gizli');
         if (sn !== sonSaniye) { sonSaniye = sn; if (sn > 0) Ses.tik(); }
+        // Son 1 saniye: düşecek halka yanıp söner, botlar kaçmaya çalışır
+        if (!uyariVar && zaman <= 1 && M.dusecekMi(d)) {
+          uyariVar = true;
+          Ses.uyari();
+          b.hud.bilgi('⚠️ KIRMIZI HALKA DÜŞÜYOR! İçeri kaç!', true);
+          Object.entries(hedefler).forEach(([id, h]) => {
+            const p = poz[id];
+            const kacis = M.kacisNoktasi(d, p.x, p.z);
+            if (!kacis || Math.random() < 0.35) return;            // bazı botlar geç fark eder
+            const gecikme = 0.1 + Math.random() * 0.4;
+            setTimeout(() => { if (!durdu && asama === 'gizli') { h.x = kacis[0]; h.z = kacis[1]; } }, gecikme * 1000);
+          });
+        }
         if (zaman <= 0) { b.hud.perde(''); ates(); }
       }
     });

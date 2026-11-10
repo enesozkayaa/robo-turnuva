@@ -70,6 +70,11 @@ const LazerMotor = (() => {
   const dusecekMi = d => d.tur % KUCULME_ARALIGI === 0 && d.seviye < HALKALAR.length - 1;
   // Güvenli bölge: halka düşecekse bir içteki
   const guvenli = d => HALKALAR[dusecekMi(d) ? d.seviye + 1 : d.seviye];
+  // Halka son saniyede yanıp sönünce kaçılacak en yakın güvenli nokta (zaten güvendeyse null)
+  function kacisNoktasi(d, x, z) {
+    if (!dusecekMi(d) || icindeMi(guvenli(d), x, z, ROBOT_R * 0.5)) return null;
+    return sinirla(guvenli(d), x, z, ROBOT_R + 0.35);
+  }
 
   // Tur sonu: pozlar = { id: {x, z, a} }. Herkes aynı anda ateş eder.
   function turuBitir(d, pozlar) {
@@ -122,9 +127,10 @@ const LazerMotor = (() => {
   // ---------- Botlar ----------
   // Turun başında karar verir: gideceği yer ve nişan açısı.
   // Rakiplerin tur başındaki yerini bilir (herkes görünmez olmadan önce görür).
+  // Hangi halkanın düşeceğini bilmez: son saniyede yanıp sönünce kaçmaya çalışır (lazer.js).
   function botKarari(d, id, rnd = Math.random) {
     const ben = d.oyuncular.find(o => o.id === id);
-    const r = guvenli(d);
+    const r = platform(d);
     const menzil = HIZ * SURE.gizli * 0.85;
     // Gideceği yer: güvenli bölgede rastgele, ama en az biraz yer değiştirsin
     let hx = ben.x, hz = ben.z;
@@ -155,7 +161,7 @@ const LazerMotor = (() => {
 
   return {
     HALKALAR, KAFES, ROBOT_R, ISIN_R, HIZ, SURE, KUCULME_ARALIGI,
-    yeni, turuBitir, botKarari, sinirla, icindeMi, duvaraKadar, platform, canlilar, dusecekMi, guvenli,
+    yeni, turuBitir, botKarari, kacisNoktasi, sinirla, icindeMi, duvaraKadar, platform, canlilar, dusecekMi, guvenli,
   };
 })();
 

@@ -12,8 +12,10 @@ const Salon = (() => {
   const BOT_ADLARI = ['Bipbop', 'Tıkır', 'Vızır', 'Cızbız', 'Pırpır', 'Zıpzıp', 'Dıtdıt', 'Fırfır'];
   const ANAHTAR = 'roboTurnuva.ayar';
   const oyunlar = [];
+  const EN_COK_BOT = 4;
   let ayar = { ad: '', bot: 3 };
   try { Object.assign(ayar, JSON.parse(localStorage.getItem(ANAHTAR) || '{}')); } catch (e) { /* varsayılan */ }
+  ayar.bot = Math.min(EN_COK_BOT, Math.max(1, +ayar.bot || 3));
   let calisan = null, sonOyun = null;
   const $ = id => document.getElementById(id);
 
@@ -27,7 +29,7 @@ const Salon = (() => {
     $('surumNotu').textContent = `Sürüm ${SURUM}`;
     $('adim').value = ayar.ad;
     $('adim').addEventListener('input', e => { ayar.ad = e.target.value.trim(); kaydet(); });
-    $('botSayisi').innerHTML = [1, 2, 3, 4, 5, 6, 7].map(n => `<button data-n="${n}">${n}</button>`).join('');
+    $('botSayisi').innerHTML = Array.from({ length: EN_COK_BOT }, (_, i) => i + 1).map(n => `<button data-n="${n}">${n}</button>`).join('');
     $('botSayisi').addEventListener('click', e => {
       const n = +e.target.dataset.n;
       if (!n) return;
