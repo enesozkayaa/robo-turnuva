@@ -122,7 +122,8 @@
       else if (!d.isikAcik) { ben.fener = !ben.fener; Ses.tik(); }
     }
     dugme.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); eylem(); });
-    const fareBas = e => { if (e.target === Cekirdek.tuval && e.button === 0 && e.pointerType === 'mouse') eylem(); };
+    // Bilgisayarda sol tık: ateş (avcı) / fener (saklanan). Joystick katmanı ekranı kaplar, ona tıklanınca da sayılır.
+    const fareBas = e => { if ((e.target === Cekirdek.tuval || e.target.id === 'dokunmaAlani') && e.button === 0 && e.pointerType === 'mouse') eylem(); };
     const tus = e => {
       if (e.repeat || document.activeElement?.tagName === 'INPUT') return;
       if (e.code === 'Space' || e.code === 'KeyF') { e.preventDefault(); eylem(); }
@@ -374,12 +375,24 @@
       // Kamera ve maske: sadece bulunduğum oda görünür (elenince bütün ev)
       const h = d.harita;
       let hedefKutu;
+      const odaCerceve = id => { const k = h.odaKutu[id]; return { x1: k.x1 - 0.12, z1: k.z1 - 0.12, x2: k.x2 + 0.12, z2: k.z2 + 0.12 }; };
       if (ben.canli) {
-        const k = h.odaKutu[M.odaBul(h, ben.x, ben.z)];
-        hedefKutu = { x1: k.x1 - 0.12, z1: k.z1 - 0.12, x2: k.x2 + 0.12, z2: k.z2 + 0.12 };
+        hedefKutu = odaCerceve(M.odaBul(h, ben.x, ben.z));
+        // Kapıdan geçerken çerçeve benimle kayar: kapının neresindeysem iki odanın o kadarı görünür
+        for (const [kx, kz] of h.kapilar) {
+          if (Math.hypot(ben.x - kx, ben.z - kz) > 1.3) continue;
+          const dikey = M.odaBul(h, kx - 0.5, kz) !== M.odaBul(h, kx + 0.5, kz);   // kapı x yönünde mi geçiliyor
+          const [nx, nz] = dikey ? [1, 0] : [0, 1];
+          const A = M.odaBul(h, kx - nx * 0.5, kz - nz * 0.5), B = M.odaBul(h, kx + nx * 0.5, kz + nz * 0.5);
+          if (A === B) continue;
+          const t = Math.max(0, Math.min(1, ((ben.x - kx) * nx + (ben.z - kz) * nz) / 1.6 + 0.5));
+          const a = odaCerceve(A), c = odaCerceve(B);
+          hedefKutu = { x1: a.x1 + (c.x1 - a.x1) * t, z1: a.z1 + (c.z1 - a.z1) * t, x2: a.x2 + (c.x2 - a.x2) * t, z2: a.z2 + (c.z2 - a.z2) * t };
+          break;
+        }
       } else hedefKutu = { x1: -60, z1: -60, x2: 60, z2: 60 };
       if (!kam) kam = { ...hedefKutu };
-      const yumus = Math.min(1, dt * 7);
+      const yumus = Math.min(1, dt * 12);
       ['x1', 'z1', 'x2', 'z2'].forEach(k => { kam[k] += (hedefKutu[k] - kam[k]) * yumus; });
       const genis = 80;
       const [mSol, mSag, mUst, mAlt] = maske;
