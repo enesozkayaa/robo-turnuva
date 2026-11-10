@@ -47,12 +47,12 @@
     ikon: '💣',
     ozet: 'Mayınlı koridordan uzay üssüne ilk sen var! Etrafını tara, mayınların yanından geç.',
     kurallar: [
-      'Uzun bir koridordasınız. Sadece <b>ileri ve yanlara</b> gidebilirsin, geri dönemezsin.',
-      `Yerde gizli <b>mayınlar</b> var. Her <b>${M.TARAMA_ARA} saniyede</b> bir etrafını <b>tarayabilirsin</b> (boşluk / sol tık / düğme): yakınındaki mayınları sadece sen görürsün.`,
+      'Uzun bir koridordasınız. İleri, geri ve yanlara gidebilirsin.',
+      `Yerde gizli <b>mayınlar</b> var. Her <b>${M.TARAMA_ARA} saniyede</b> bir etrafını <b>tarayabilirsin</b> (boşluk / sol tık / düğme): yakınındaki mayınlar birkaç saniye görünür, sonra yine gizlenir — yerlerini aklında tut! Başkalarının taramasını da görürsün.`,
       'İlk mayına basınca robotundan <b>duman</b> çıkar ve <b>sürünerek</b> yavaş gidersin. İkinci mayında <b>patlarsın</b>!',
       'Koridorun sonundaki <b>uzay üssüne</b> ilk varan kazanır. Süre bitince varamayan patlar, puan alamaz.',
       'Birbirinizi <b>itebilirsiniz</b>. Şanslıysan taramadan da koşabilirsin…',
-      'Bilgisayar: <b>W</b> ileri, <b>A / D</b> yanlar. Telefon: sol joystick ve tarama düğmesi.',
+      'Bilgisayar: <b>WASD</b>. Telefon: sol joystick ve tarama düğmesi.',
     ],
     ayarlar: [{ id: 'sure', ad: 'Süre (sn)', secenekler: [45, 60, 90], varsayilan: 60 }],
     baslat,
@@ -66,7 +66,9 @@
     Cekirdek.kameraAyarla(6, 0.95);
     let d = null, R = {}, hafiza = {}, ben = null, MY = [];
     let durdu = false, birikim = 0, bittiMi = false, sonSn = null, taramaIstek = false, sonTarama = -99;
-    const bilinen = new Set();                 // benim taradığım mayınlar
+    const gorunur = new Map();                 // mayın no → ne zamana kadar görünür (taramalar herkese açık, sonra gizlenir)
+    const GORUNME_SN = 2.5;
+    let saat = 0;
     const dumanlar = [];
 
     // ---------- Tarama düğmesi ----------
@@ -140,21 +142,23 @@
       hudOyuncular();
     }
 
-    // Tarama: çember dalgası ve yakındaki mayınları göster
-    function tara() {
-      if (!d || ben.durum !== 'oynuyor' || d.t < 0 || d.t - sonTarama < M.TARAMA_ARA) return;
-      sonTarama = d.t;
-      M.taramaSonucu(d, ben.x, ben.z).forEach(id => bilinen.add(id));
+    // Tarama (herkes görür): o oyuncunun renginde çember dalgası, o an çemberdeki mayınlar kısa süre görünür
+    function taramaGoster(ol) {
+      const o = d.oyuncular.find(p => p.id === ol.id);
+      const renk = new THREE.Color(o.renk);
+      if (ol.id === b.benId) sonTarama = d.t;
+      ol.m.forEach(id => gorunur.set(id, saat + GORUNME_SN));
       Ses.belir();
-      const halka = new THREE.Mesh(new THREE.RingGeometry(0.9, 1, 48), new THREE.MeshBasicMaterial({ color: 0x2ee6ff, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }));
-      halka.rotation.x = -Math.PI / 2; halka.position.set(ben.x, 0.05, ben.z);
-      const disk = new THREE.Mesh(new THREE.CircleGeometry(1, 48), new THREE.MeshBasicMaterial({ color: 0x2ee6ff, transparent: true, opacity: 0.12, depthWrite: false }));
-      disk.rotation.x = -Math.PI / 2; disk.position.set(ben.x, 0.03, ben.z);
+      const halka = new THREE.Mesh(new THREE.RingGeometry(0.9, 1, 48), new THREE.MeshBasicMaterial({ color: renk, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false }));
+      halka.rotation.x = -Math.PI / 2; halka.position.set(ol.x, 0.05, ol.z);
+      const disk = new THREE.Mesh(new THREE.CircleGeometry(1, 48), new THREE.MeshBasicMaterial({ color: renk, transparent: true, opacity: 0.14, depthWrite: false }));
+      disk.rotation.x = -Math.PI / 2; disk.position.set(ol.x, 0.03, ol.z);
       grup.add(halka, disk);
-      Cekirdek.animasyon(0.6, t => {
-        const r = 0.2 + t * M.TARAMA_R;
-        halka.scale.setScalar(r); disk.scale.setScalar(r);
-        halka.material.opacity = 0.8 * (1 - t * 0.6); disk.material.opacity = 0.12 * (1 - t);
+      Cekirdek.animasyon(GORUNME_SN, t => {
+        const k = Math.min(1, t * 4);   // ilk çeyrekte yayılır, sonra solar
+        const rr = 0.2 + k * M.TARAMA_R;
+        halka.scale.setScalar(rr); disk.scale.setScalar(rr);
+        halka.material.opacity = 0.85 * (1 - t); disk.material.opacity = 0.14 * (1 - t);
       }).then(() => { grup.remove(halka, disk); });
     }
 
@@ -195,6 +199,7 @@
         if (o.id === b.benId) { b.hud.bilgi('⏰ Süre bitti, patladın!', true); b.hud.perde('flas'); }
         hudOyuncular();
       } else if (ol.tip === 'it') { Ses.isabet(); }
+      else if (ol.tip === 'tara') taramaGoster(ol);
       else if (ol.tip === 'bitti') bitir(ol);
     }
     function bitir(ol) {
@@ -217,9 +222,11 @@
       kur(tohum);
       if (kanal.online) kanal.yayinla({ t: 'harita', tohum, sure });
       kanal.evDinle((m, id) => {
-        if (id === b.benId || m.t !== 'g') return;
+        if (id === b.benId) return;
+        if (m.t === 'tara') { (girdiler[id] ??= {}).tara = true; return; }
+        if (m.t !== 'g') return;
         const x = +m.x, z = +m.z, a = +m.a;
-        if ([x, z].every(isFinite)) girdiler[id] = { x, z, a };
+        if ([x, z].every(isFinite)) girdiler[id] = { ...(girdiler[id] || {}), x, z, a };
       });
     } else {
       b.hud.bilgi('⏳ Koridor yükleniyor…');
@@ -249,20 +256,21 @@
     // ---------- Her kare ----------
     const kaldir = Cekirdek.guncelle((dt, t) => {
       if (durdu || !d) return;
-      if (taramaIstek) { taramaIstek = false; tara(); }
+      saat += dt;
       if (!bittiMi) {
         const [hx, hz] = Kontrol.hareket();
         if (kanal.evMi) {
           birikim += dt;
           while (birikim >= ADIM && !d.bitti) {
             birikim -= ADIM;
-            const g = { [b.benId]: { hx, hz } };
+            const g = { [b.benId]: { hx, hz, tara: taramaIstek } };
+            taramaIstek = false;
             d.oyuncular.forEach(o => {
               if (o.durum !== 'oynuyor') return;
               if (o.bot) {
                 const bg = M.botGirdi(d, o.id, hafiza[o.id]);
                 g[o.id] = bg;
-              } else if (o.id !== b.benId && girdiler[o.id]) g[o.id] = girdiler[o.id];
+              } else if (o.id !== b.benId && girdiler[o.id]) { g[o.id] = girdiler[o.id]; girdiler[o.id] = { ...girdiler[o.id], tara: false }; }
             });
             const ol = M.adim(d, ADIM, g);
             ol.forEach(olayIsle);
@@ -277,6 +285,7 @@
           d.t += dt;
           if (ben.durum === 'oynuyor' && d.t >= 0) M.yuru(ben, hx, hz, dt);
           if ((gondermeSayac += dt) >= YAYIN_SN) { gondermeSayac = 0; kanal.evaGonder({ t: 'g', x: ben.x, z: ben.z, a: ben.a }); }
+          if (taramaIstek) { taramaIstek = false; if (ben.durum === 'oynuyor' && d.t >= 0) kanal.evaGonder({ t: 'tara' }); }
           d.oyuncular.forEach(o => {
             if (o.id === b.benId || o.durum !== 'oynuyor') return;
             const k = Math.min(1, dt * 14);
@@ -310,8 +319,13 @@
       // Mayınlar: taradıklarım görünür ve yanıp söner
       d.mayinlar.forEach((m, i) => {
         const v = MY[i];
-        v.g.visible = m.durum === 'gizli' && bilinen.has(m.id);
-        if (v.g.visible) v.hale.material.opacity = 0.5 + Math.sin(t * 8 + i) * 0.4;
+        const bitis = gorunur.get(m.id) || 0;
+        v.g.visible = m.durum === 'gizli' && bitis > saat;
+        if (v.g.visible) {
+          const son = Math.min(1, (bitis - saat) / 0.6);   // son anda solarak gizlenir
+          v.hale.material.opacity = (0.5 + Math.sin(t * 8 + i) * 0.4) * son;
+          v.g.scale.setScalar(0.6 + son * 0.4);
+        }
         if (m.durum === 'patladi') v.krater.visible = true;
       });
 

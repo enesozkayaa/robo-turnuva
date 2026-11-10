@@ -1,16 +1,17 @@
 // =============================================================
 // Robo Turnuva - Mayın Koridoru: kurallar (ekran yok, sadece hesap)
-// Uzun koridor (ileri = -z). Yerde gizli mayınlar (tohumdan, herkeste aynı). Sadece ileri ve yanlara gidilir.
-// Her 5 saniyede bir etrafını tarayabilirsin (yakın çember): o çemberdeki mayınları sen görürsün.
+// Uzun koridor (ileri = -z). Yerde gizli mayınlar (tohumdan, herkeste aynı). Her yöne gidilir.
+// Her 5 saniyede bir etrafını tarayabilirsin (yakın çember): o an çemberdeki mayınlar kısa süre görünür,
+// başka oyuncular da senin taramanı görür; tarama bitince mayınlar yeniden gizlenir.
 // İlk mayına basınca duman çıkar, sürünerek yavaş gidersin; ikincisinde patlarsın.
 // Koridorun sonundaki uzay üssüne ilk varan kazanır. Süre biterse varamayan patlar, puan alamaz.
 // Birbirini itme var. Sabit adımlı simülasyon: adim(d, dt, girdiler).
 // =============================================================
 
 const MayinMotor = (() => {
-  const L = 40, W = 3;                    // koridor uzunluğu, yarı genişliği (5 robot yan yana sığar)
+  const L = 28, W = 3;                    // koridor uzunluğu, yarı genişliği (5 robot yan yana sığar)
   const ROBOT_R = 0.38, AYAK = 0.22;       // çarpışma yarıçapı, mayına basma yarıçapı
-  const MAYIN_R = 0.16, MAYIN_SAYI = 26;
+  const MAYIN_R = 0.26, MAYIN_SAYI = 26;
   const HIZ = 2.6, HASARLI_HIZ = 1.1;
   const TARAMA_R = 2.8, TARAMA_ARA = 5;
   const BASLANGIC = 3, BITIS_Z = -L;      // başlangıç çizgisi z=0, üs z=-L
@@ -23,7 +24,7 @@ const MayinMotor = (() => {
     const rnd = tohumlu(tohum), m = [];
     for (let deneme = 0; m.length < MAYIN_SAYI && deneme < 5000; deneme++) {
       const x = (rnd() * 2 - 1) * (W - 0.3), z = -3 - rnd() * (L - 6);
-      if (m.some(p => Math.hypot(p.x - x, p.z - z) < 1.0)) continue;
+      if (m.some(p => Math.hypot(p.x - x, p.z - z) < 0.95)) continue;
       m.push({ id: m.length, x, z, durum: 'gizli' });   // gizli | patladi
     }
     return m;
@@ -35,7 +36,7 @@ const MayinMotor = (() => {
       mayinlar: mayinlarYap(tohum),
       oyuncular: oyuncular.map((o, i) => ({
         ...o, x: BAS_X[i % 4], z: 0, a: -Math.PI / 2, vx: 0, vz: 0,
-        durum: 'oynuyor', hasarli: false, sira: 0, tarama: 0,
+        durum: 'oynuyor', hasarli: false, sira: 0, sonTarama: -99,
       })),
     };
   }
@@ -46,7 +47,6 @@ const MayinMotor = (() => {
   }
   // Tek robotun yürüyüşü (misafir kendi robotunu da bununla yürütür). Geri gidilmez.
   function yuru(o, hx, hz, dt) {
-    hz = Math.min(0, hz);   // sadece ileri (-z)
     const L2 = Math.hypot(hx, hz), h = o.hasarli ? HASARLI_HIZ : HIZ;
     if (L2 > 1) { hx /= L2; hz /= L2; }
     const ex = o.x, ez = o.z;
@@ -80,8 +80,7 @@ const MayinMotor = (() => {
       if (typeof g.x === 'number' && isFinite(g.x) && isFinite(g.z)) {
         // Misafir: yerini kendisi gönderir (geri gidemez, hızı aşamaz)
         const enCok = (o.hasarli ? HASARLI_HIZ : HIZ) * dt * 4 + 0.5;
-        const nz = Math.min(o.z + 0.05, g.z);
-        if (Math.hypot(g.x - o.x, nz - o.z) < enCok) { o.x = g.x; o.z = nz; }
+        if (Math.hypot(g.x - o.x, g.z - o.z) < enCok) { o.x = g.x; o.z = g.z; }
         if (isFinite(+g.a)) o.a = +g.a;
         const s = Math.exp(-5 * dt); o.vx *= s; o.vz *= s;
         sinirla(o);
@@ -105,6 +104,13 @@ const MayinMotor = (() => {
       yiyen.vx += nx * s * g; yiyen.vz += nz * s * g;
       olaylar.push({ tip: 'it', id: yiyen.id, kim: iten.id, vx: nx * s * g, vz: nz * s * g });
     }
+    // Tarama: herkes görür (çember + o anki mayınlar); 5 saniyede bir
+    yasayan.forEach(o => {
+      const g = girdiler[o.id] || {};
+      if (!g.tara || d.t - o.sonTarama < TARAMA_ARA) return;
+      o.sonTarama = d.t;
+      olaylar.push({ tip: 'tara', id: o.id, x: +o.x.toFixed(2), z: +o.z.toFixed(2), m: taramaSonucu(d, o.x, o.z) });
+    });
     // Mayınlar
     yasayan.forEach(o => {
       if (o.durum !== 'oynuyor') return;
@@ -142,7 +148,7 @@ const MayinMotor = (() => {
     hafiza.cesaret ??= rnd();                      // 0 temkinli → 1 gözü kara
     hafiza.taramaZ ??= o.z;
     // Tarama hazırsa tara
-    let tara = false;
+    let tara = false;   // tarama isteği (motor 5 sn'de bir kabul eder)
     if (d.t - (hafiza.sonTarama ?? -99) >= TARAMA_ARA) {
       hafiza.sonTarama = d.t; hafiza.taramaZ = o.z; tara = true;
       taramaSonucu(d, o.x, o.z).forEach(m => hafiza.bilinen.add(m));
@@ -151,7 +157,7 @@ const MayinMotor = (() => {
     const kalanYol = o.z - BITIS_Z;
     const yetisir = d.kalan > kalanYol / (o.hasarli ? HASARLI_HIZ : HIZ) + 4;
     const disinda = o.z < hafiza.taramaZ - TARAMA_R * 0.8;
-    if (disinda && yetisir && rnd() > hafiza.cesaret * 0.02 && hafiza.cesaret < 0.65) return { tara };
+    if (disinda && yetisir && hafiza.cesaret < 0.4) return { tara };
     // Önündeki bilinen mayınlardan uzak bir şerit seç
     const ileri = d.mayinlar.filter(m => hafiza.bilinen.has(m.id) && m.durum === 'gizli' && m.z < o.z + 0.3 && m.z > o.z - 2.6);
     let enIyi = o.x, enIyiPuan = -Infinity;
