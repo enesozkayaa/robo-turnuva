@@ -1,45 +1,49 @@
 // =============================================================
 // Robo Turnuva - Son Sığınak: kurallar (ekran yok, sadece hesap)
-// Yuvarlak meydanın arka yarısında yay şeklinde 8 kabin (her birine 1 robot sığar).
-// Tur: bazı kapılar yeşil yanar ve açılır (ACIK_SN). Bu sürede bir an kabinlerin tavanından
-// tuzak iner: içeride olan ölür (erken girip beklemek tehlikeli). Süre bitince kapılar kapanır,
-// uzay aracı dışarıda kalanları alır. Açık kapı: 6 → 4 → 3 → 2 → 1 (ama en fazla kalan kişi - 1).
-// Oyuncular birbirini itebilir. Son kalan kazanır.
+// Yuvarlak meydanın çevresinde, her tarafında 8 kabin (her birine 1 robot sığar).
+// Tur:
+//   bekle (10 sn)   → bütün kapılar kapalı, herkes meydanda
+//   giris (5 sn)    → bazı kapılar yeşil yanar ve açılır: içeri gir
+//   kapanis         → kapılar kapanır
+//   saldiri         → uzay aracı dışarıda kalanları alır
+//   cikis (2 sn)    → kapılar açılır: hemen çık! (son anda tuzak uyarısı)
+//   tuzak           → tavandan tuzak iner, içeride olan ölür (rakibini içeri itebilirsin!)
+//   kilit           → tuzak inik kalır, kapılar kapanır → yeni tur
+// Açık kapı: 4 kişiyle 6 → 4 → 3 → 2 → 1, 2-3 kişiyle 4 → 3 → 2 → 1. Son kalan kazanır.
 // Sabit adımlı simülasyon: adim(d, dt, girdiler). Tarayıcıda ve Node'da (test) çalışır.
-// Koordinat: zemin x-z; kabin i, açısı θ_i: ön yüzü meydanın merkezine bakar.
 // =============================================================
 
 const KapiMotor = (() => {
   const R = 8, KAPI_N = 8, W = 1.5, D = 1.4;          // meydan yarıçapı, kabin sayısı, kabin genişliği ve derinliği
   const ROBOT_R = 0.38, HIZ = 4.2;
-  const SIRA = [6, 4, 3, 2, 1];
-  const SURE = { baslangic: 3, acik: 10, kapanis: 0.7, saldiri: 3.2, cikis: 1.8 };
-  const TUZAK = { uyari: 0.8, inis: 0.3, asagi: 0.5, kalkis: 0.6 };
-  const ACILAR = Array.from({ length: KAPI_N }, (_, i) => (-165 + (150 / (KAPI_N - 1)) * i) * Math.PI / 180);
-  const kabin = i => {
-    const a = ACILAR[i], nx = Math.cos(a), nz = Math.sin(a);
+  const SURE = { baslangic: 3, bekle: 10, giris: 5, kapanis: 0.7, saldiri: 3.2, cikis: 2, tuzak: 0.7, kilit: 0.8 };
+  const UYARI_SN = 0.9;                               // çıkış süresinin son kaç saniyesinde tuzak uyarır
+  const SIRA_4 = [6, 4, 3, 2, 1], SIRA_3 = [4, 3, 2, 1];
+  const ACILAR = Array.from({ length: KAPI_N }, (_, i) => (-90 + i * 360 / KAPI_N) * Math.PI / 180);
+  const KABIN = ACILAR.map(a => {
+    const nx = Math.cos(a), nz = Math.sin(a);
     return { a, nx, nz, tx: -nz, tz: nx, cx: R * nx, cz: R * nz };
-  };
-  const KABIN = ACILAR.map((_, i) => kabin(i));
+  });
   // Noktanın kabine göre yeri: u = yana, v = derinlik (0 = kapı çizgisi, + = içeri)
   const yerel = (k, x, z) => [(x - k.cx) * k.tx + (z - k.cz) * k.tz, (x - k.cx) * k.nx + (z - k.cz) * k.nz];
   const dunya = (k, u, v) => [k.cx + k.tx * u + k.nx * v, k.cz + k.tz * u + k.nz * v];
-  const BASLANGIC_YER = [[-1.6, 2.2], [1.6, 2.2], [-1.6, 4.4], [1.6, 4.4]];
+  const BASLANGIC_YER = [[-1.3, -1.3], [1.3, 1.3], [1.3, -1.3], [-1.3, 1.3]];
+  const iceride = (k, o) => { const [u, v] = yerel(k, o.x, o.z); return v > ROBOT_R * 0.6 && Math.abs(u) < W / 2; };
 
   function yeni(oyuncular) {
     return {
       t: -SURE.baslangic, tur: 0, faz: 'baslangic', fazKalan: SURE.baslangic,
+      sira: oyuncular.length >= 4 ? SIRA_4 : SIRA_3,
       kapilar: KABIN.map(() => ({ acik: false, dolu: null })),
-      tuzak: { durum: 'yok', zaman: 0, baslama: 99 },
+      acikKapilar: [], tuzakUyardi: false,
       bitti: false, kazanan: null, olumSayac: 0,
       oyuncular: oyuncular.map((o, k) => {
         const [x, z] = BASLANGIC_YER[k % 4];
-        return { ...o, x, z, a: -Math.PI / 2, vx: 0, vz: 0, canli: true, olumSirasi: 0, neden: '' };
+        return { ...o, x, z, a: Math.atan2(-z, -x), vx: 0, vz: 0, canli: true, olumSirasi: 0, neden: '' };
       }),
     };
   }
   const canlilar = d => d.oyuncular.filter(o => o.canli);
-  const icindeki = d => d.kapilar.map(k => k.dolu).filter(id => id !== null);
 
   // Robotu meydanın ve kabinlerin içinde tutar
   function kisitla(d, o) {
@@ -65,7 +69,6 @@ const KapiMotor = (() => {
       if (L > en) { o.x *= en / L; o.z *= en / L; }
     }
   }
-  // Kabinlere kim girdi
   function dolulukGuncelle(d) {
     KABIN.forEach((k, i) => {
       const kp = d.kapilar[i];
@@ -74,51 +77,58 @@ const KapiMotor = (() => {
         if (!o || !o.canli || yerel(k, o.x, o.z)[1] < 0) kp.dolu = null;
       }
       if (kp.dolu === null && kp.acik) {
-        const o = canlilar(d).find(p => { const [u, v] = yerel(k, p.x, p.z); return v > ROBOT_R * 0.6 && Math.abs(u) < W / 2; });
+        const o = canlilar(d).find(p => iceride(k, p));
         if (o) kp.dolu = o.id;
       }
     });
   }
+  const kabindekiler = d => canlilar(d).filter(o => KABIN.some((k, i) => d.kapilar[i].dolu === o.id || iceride(k, o)));
 
-  function oldur(d, o, neden, olaylar) {
+  function oldur(d, o, neden) {
     o.canli = false; o.olumSirasi = ++d.olumSayac; o.neden = neden; o.olumTuru = d.tur;
     d.kapilar.forEach(k => { if (k.dolu === o.id) k.dolu = null; });
     return o.id;
   }
-  function bitisKontrol(d, olaylar, onceCanli) {
+  function bitisKontrol(d, olaylar) {
     const kalan = canlilar(d);
     if (kalan.length <= 1) {
       d.bitti = true;
-      // Hepsi aynı anda öldüyse berabere
       d.kazanan = kalan.length ? kalan[0].id : null;
       olaylar.push({ tip: 'bitti', kazanan: d.kazanan });
     }
-    void onceCanli;
   }
 
   function fazaGec(d, faz, olaylar, rnd) {
     d.faz = faz; d.fazKalan = SURE[faz];
-    if (faz === 'acik') {
+    if (faz === 'bekle') {
       d.tur++;
-      const n = Math.max(1, Math.min(SIRA[Math.min(d.tur - 1, SIRA.length - 1)], canlilar(d).length - 1));
-      const sira = KABIN.map((_, i) => i).sort(() => rnd() - 0.5).slice(0, n);
-      d.kapilar.forEach((k, i) => { k.acik = sira.includes(i); k.dolu = null; });
-      // Tuzak açık sürenin ortalarında bir an iner (son 2.5 sn'ye kalmaz)
-      d.tuzak = { durum: 'yok', zaman: 0, baslama: 2.5 + rnd() * (SURE.acik - 2.5 - TUZAK.uyari - TUZAK.inis - TUZAK.asagi - TUZAK.kalkis - 2.3) };
-      olaylar.push({ tip: 'acik', tur: d.tur, acik: sira });
+      d.kapilar.forEach(k => { k.acik = false; k.dolu = null; });
+      olaylar.push({ tip: 'bekle', tur: d.tur });
+    } else if (faz === 'giris') {
+      const n = Math.max(1, Math.min(KAPI_N, d.sira[Math.min(d.tur - 1, d.sira.length - 1)]));
+      d.acikKapilar = KABIN.map((_, i) => i).sort(() => rnd() - 0.5).slice(0, n);
+      d.kapilar.forEach((k, i) => { k.acik = d.acikKapilar.includes(i); k.dolu = null; });
+      olaylar.push({ tip: 'acik', acik: d.acikKapilar });
     } else if (faz === 'kapanis') {
       d.kapilar.forEach(k => { k.acik = false; });
-      olaylar.push({ tip: 'kapanis', icerde: icindeki(d) });
+      olaylar.push({ tip: 'kapanis' });
     } else if (faz === 'saldiri') {
-      const icerde = icindeki(d);
-      const olen = canlilar(d).filter(o => !icerde.includes(o.id)).map(o => oldur(d, o, 'uzay', olaylar));
-      olaylar.push({ tip: 'saldiri', olenler: olen, kurtulan: icerde });
+      const kurtulan = kabindekiler(d).map(o => o.id);
+      const olen = canlilar(d).filter(o => !kurtulan.includes(o.id)).map(o => oldur(d, o, 'uzay'));
+      olaylar.push({ tip: 'saldiri', olenler: olen, kurtulan });
       bitisKontrol(d, olaylar);
     } else if (faz === 'cikis') {
-      // Kurtulanlar meydanın ortasına döner, kapılar boşalır
-      canlilar(d).forEach((o, k) => { [o.x, o.z] = BASLANGIC_YER[k % 4]; o.vx = o.vz = 0; o.a = -Math.PI / 2; });
-      d.kapilar.forEach(k => { k.dolu = null; k.acik = false; });
-      olaylar.push({ tip: 'cikis', yerler: canlilar(d).map(o => [o.id, o.x, o.z]) });
+      d.tuzakUyardi = false;
+      d.kapilar.forEach((k, i) => { k.acik = d.acikKapilar.includes(i); });
+      olaylar.push({ tip: 'cikis', acik: d.acikKapilar });
+    } else if (faz === 'tuzak') {
+      dolulukGuncelle(d);
+      const olen = kabindekiler(d).map(o => oldur(d, o, 'tuzak'));
+      olaylar.push({ tip: 'tuzak', olenler: olen });
+      bitisKontrol(d, olaylar);
+    } else if (faz === 'kilit') {
+      d.kapilar.forEach(k => { k.acik = false; k.dolu = null; });
+      olaylar.push({ tip: 'kapanis', kilit: true });
     }
   }
 
@@ -129,11 +139,15 @@ const KapiMotor = (() => {
     d.t += dt;
     d.fazKalan -= dt;
     if (d.fazKalan <= 0) {
-      const sira = { baslangic: 'acik', acik: 'kapanis', kapanis: 'saldiri', saldiri: 'cikis', cikis: 'acik' };
+      const sira = { baslangic: 'bekle', bekle: 'giris', giris: 'kapanis', kapanis: 'saldiri', saldiri: 'cikis', cikis: 'tuzak', tuzak: 'kilit', kilit: 'bekle' };
       fazaGec(d, sira[d.faz], olaylar, rnd);
       if (d.bitti) return olaylar;
     }
-    const hareketli = d.faz === 'acik' || d.faz === 'kapanis' || d.faz === 'saldiri';
+    if (d.faz === 'cikis' && !d.tuzakUyardi && d.fazKalan <= UYARI_SN) {
+      d.tuzakUyardi = true;
+      olaylar.push({ tip: 'tuzakUyari' });
+    }
+    const hareketli = d.faz !== 'baslangic';
     const yasayan = canlilar(d);
     yasayan.forEach(o => {
       const g = girdiler[o.id] || {};
@@ -151,7 +165,7 @@ const KapiMotor = (() => {
       if (Math.hypot(mx, mz) > 0.002) o.a = Math.atan2(mz, mx);
       o.hizX = mx / dt; o.hizZ = mz / dt;
     });
-    // Çarpışma ve itme
+    // Çarpışma ve itme (rakibini kabine geri itebilirsin)
     for (let i = 0; i < yasayan.length; i++) for (let j = i + 1; j < yasayan.length; j++) {
       const p = yasayan[i], q = yasayan[j];
       const dx = q.x - p.x, dz = q.z - p.z, L = Math.hypot(dx, dz), en = ROBOT_R * 2;
@@ -161,75 +175,73 @@ const KapiMotor = (() => {
       kisitla(d, p); kisitla(d, q);
       const pY = Math.max(0, (p.hizX || 0) * nx + (p.hizZ || 0) * nz), qY = Math.max(0, -((q.hizX || 0) * nx + (q.hizZ || 0) * nz));
       if (d.t - (p.sonIt?.[q.id] || -9) < 0.35) continue;
-      if (pY > qY + 0.5) { const g = 2 + pY; q.vx += nx * g; q.vz += nz * g; (p.sonIt ??= {})[q.id] = d.t; olaylar.push({ tip: 'it', id: q.id, vx: nx * g, vz: nz * g }); }
-      else if (qY > pY + 0.5) { const g = 2 + qY; p.vx -= nx * g; p.vz -= nz * g; (p.sonIt ??= {})[q.id] = d.t; olaylar.push({ tip: 'it', id: p.id, vx: -nx * g, vz: -nz * g }); }
+      if (pY > qY + 0.5) { const g = 2.4 + pY * 1.1; q.vx += nx * g; q.vz += nz * g; (p.sonIt ??= {})[q.id] = d.t; olaylar.push({ tip: 'it', id: q.id, vx: nx * g, vz: nz * g }); }
+      else if (qY > pY + 0.5) { const g = 2.4 + qY * 1.1; p.vx -= nx * g; p.vz -= nz * g; (p.sonIt ??= {})[q.id] = d.t; olaylar.push({ tip: 'it', id: p.id, vx: -nx * g, vz: -nz * g }); }
     }
     dolulukGuncelle(d);
-
-    // Tuzak
-    if (d.faz === 'acik') {
-      const tz = d.tuzak, gecen = SURE.acik - d.fazKalan;
-      const sinir = { uyari: tz.baslama, inis: tz.baslama + TUZAK.uyari, asagi: tz.baslama + TUZAK.uyari + TUZAK.inis };
-      sinir.kalkis = sinir.asagi + TUZAK.asagi;
-      sinir.bitti = sinir.kalkis + TUZAK.kalkis;
-      const yeni = gecen >= sinir.bitti ? 'bitti' : gecen >= sinir.kalkis ? 'kalkis' : gecen >= sinir.asagi ? 'asagi' : gecen >= sinir.inis ? 'inis' : gecen >= sinir.uyari ? 'uyari' : 'yok';
-      if (yeni !== tz.durum) {
-        tz.durum = yeni;
-        olaylar.push({ tip: 'tuzak', durum: yeni });
-      }
-      // Tuzak inikken içeride olan ölür
-      if (tz.durum === 'asagi') {
-        const olen = icindeki(d).map(id => oldur(d, d.oyuncular.find(p => p.id === id), 'tuzak', olaylar));
-        if (olen.length) { olaylar.push({ tip: 'ezildi', olenler: olen }); bitisKontrol(d, olaylar); }
-      }
-    }
     return olaylar;
   }
 
   // ---------- Botlar ----------
   function botGirdi(d, id, hafiza, rnd = Math.random) {
     const o = d.oyuncular.find(p => p.id === id);
-    if (!o.canli || d.faz !== 'acik') return { hx: 0, hz: 0 };
-    if (hafiza.tur !== d.tur) {
-      hafiza.tur = d.tur;
-      hafiza.hedef = null;
-      hafiza.gozu = rnd() < 0.15;                                 // gözü kara: tuzağı beklemeden girer
-      hafiza.girisSn = 1.3 + rnd() * 1.6;                          // tuzak olmazsa son kaç saniyede girer
-      hafiza.tepki = 0.15 + rnd() * 0.5;
-      hafiza.kacabilir = rnd() < 0.55;                            // tuzak uyarısında içerideyse kaçmayı akıl eder mi
+    if (!o.canli) return { hx: 0, hz: 0 };
+    if (hafiza.faz !== d.faz || hafiza.tur !== d.tur) {
+      hafiza.faz = d.faz; hafiza.tur = d.tur; hafiza.hedef = null;
+      hafiza.tepki = d.t + 0.1 + rnd() * 0.55;
+      hafiza.saldirgan ??= rnd() < 0.5;
+      hafiza.uyusuk = rnd() < 0.12;                 // bu tur çıkmayı geç akıl eder
+      hafiza.gezin = [(rnd() - 0.5) * 6, (rnd() - 0.5) * 6];
     }
-    const kp = i => d.kapilar[i];
-    const iceride = d.kapilar.findIndex(k => k.dolu === id);
-    // Tuzak uyarısı: içerideyse kaçmaya çalışır
-    if (iceride >= 0 && (d.tuzak.durum === 'uyari' || d.tuzak.durum === 'inis')) {
-      if (!hafiza.kacabilir) return { hx: 0, hz: 0 };
-      const k = KABIN[iceride];
-      return { hx: -k.nx, hz: -k.nz };
-    }
-    if (iceride >= 0) return { hx: 0, hz: 0 };
-    // Hedef kabin: açık, boş ve en yakın (başkası girmişse değiştir)
-    const bos = KABIN.map((k, i) => i).filter(i => kp(i).acik && kp(i).dolu === null);
-    if (hafiza.hedef === null || !bos.includes(hafiza.hedef)) {
+    const git = (tx, tz, h = 1) => {
+      const dx = tx - o.x, dz = tz - o.z, L = Math.hypot(dx, dz);
+      if (L < 0.08) return { hx: 0, hz: 0 };
+      const k = Math.min(1, L / 0.5) * h;
+      return { hx: dx / L * k, hz: dz / L * k };
+    };
+    const benimKabin = KABIN.findIndex((k, i) => d.kapilar[i].dolu === id || iceride(k, o));
+    if (d.faz === 'bekle') return git(...hafiza.gezin, 0.5);   // meydanda gezinir
+    if (d.t < hafiza.tepki) return { hx: 0, hz: 0 };
+    if (d.faz === 'giris') {
+      if (benimKabin >= 0) return git(...dunya(KABIN[benimKabin], 0, D * 0.6));
+      const bos = KABIN.map((k, i) => i).filter(i => d.kapilar[i].acik && d.kapilar[i].dolu === null);
       if (!bos.length) return { hx: 0, hz: 0 };
-      const digerHedef = new Set(d.oyuncular.filter(p => p.id !== id).map(p => p.botHedef));
-      bos.sort((a, b) => (digerHedef.has(a) - digerHedef.has(b)) || (Math.hypot(KABIN[a].cx - o.x, KABIN[a].cz - o.z) - Math.hypot(KABIN[b].cx - o.x, KABIN[b].cz - o.z)));
-      hafiza.hedef = bos[0];
-      o.botHedef = hafiza.hedef;
+      if (hafiza.hedef === null || !bos.includes(hafiza.hedef)) {
+        bos.sort((a, b) => Math.hypot(KABIN[a].cx - o.x, KABIN[a].cz - o.z) - Math.hypot(KABIN[b].cx - o.x, KABIN[b].cz - o.z));
+        hafiza.hedef = bos[rnd() < 0.85 ? 0 : Math.min(1, bos.length - 1)];
+      }
+      return git(...dunya(KABIN[hafiza.hedef], 0, D * 0.6));
     }
-    const k = KABIN[hafiza.hedef];
-    const gecen = SURE.acik - d.fazKalan;
-    if (gecen < hafiza.tepki) return { hx: 0, hz: 0 };
-    const tuzakGecti = d.tuzak.durum === 'kalkis' || d.tuzak.durum === 'bitti';
-    const tuzakYakin = d.tuzak.durum === 'uyari' || d.tuzak.durum === 'inis' || d.tuzak.durum === 'asagi';
-    const gir = !tuzakYakin && (tuzakGecti || hafiza.gozu || d.fazKalan < hafiza.girisSn);
-    const [tx, tz] = gir ? dunya(k, 0, D * 0.6) : dunya(k, 0, -1.0);
-    const dx = tx - o.x, dz = tz - o.z, L = Math.hypot(dx, dz);
-    if (L < 0.08) return { hx: 0, hz: 0 };
-    const h = Math.min(1, L / 0.5);
-    return { hx: dx / L * h, hz: dz / L * h };
+    if (d.faz === 'cikis') {
+      // İçerideyse hemen çık (uyuşuk olan geç kalır)
+      if (benimKabin >= 0) {
+        if (hafiza.uyusuk && d.fazKalan > 0.12) return { hx: 0, hz: 0 };
+        const k = KABIN[benimKabin];
+        return git(...dunya(k, 0, -2.2));
+      }
+      // Saldırgan bot: kabin kapısının önündeki rakibi içeri iter
+      if (hafiza.saldirgan) {
+        const kurban = canlilar(d).filter(p => p.id !== id).map(p => {
+          const i = d.acikKapilar.filter(i => d.kapilar[i].dolu === null || d.kapilar[i].dolu === p.id)
+            .sort((a, b) => Math.hypot(KABIN[a].cx - p.x, KABIN[a].cz - p.z) - Math.hypot(KABIN[b].cx - p.x, KABIN[b].cz - p.z))[0];
+          return i === undefined ? null : { p, i, uz: Math.hypot(KABIN[i].cx - p.x, KABIN[i].cz - p.z) };
+        }).filter(x => x && x.uz < 2.6).sort((a, b) => a.uz - b.uz)[0];
+        if (kurban) {
+          const k = KABIN[kurban.i], p = kurban.p;
+          // Rakibin kabine göre arkasına geç, sonra kabine doğru koş
+          const [kx, kz] = dunya(k, 0, D * 0.5);
+          const dx = kx - p.x, dz = kz - p.z, L = Math.hypot(dx, dz) || 1;
+          const [arkaX, arkaZ] = [p.x - dx / L * 0.85, p.z - dz / L * 0.85];
+          if (Math.hypot(arkaX - o.x, arkaZ - o.z) > 0.35) return git(arkaX, arkaZ);
+          return { hx: dx / L, hz: dz / L };
+        }
+      }
+      return git(0, 0, 0.6);
+    }
+    return { hx: 0, hz: 0 };
   }
 
-  return { R, KAPI_N, W, D, ROBOT_R, HIZ, SURE, TUZAK, KABIN, ACILAR, yerel, dunya, yeni, adim, botGirdi, canlilar, kisitla };
+  return { R, KAPI_N, W, D, ROBOT_R, HIZ, SURE, UYARI_SN, KABIN, ACILAR, yerel, dunya, yeni, adim, botGirdi, canlilar, kisitla };
 })();
 
 if (typeof module !== 'undefined') module.exports = KapiMotor;

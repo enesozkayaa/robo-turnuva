@@ -99,13 +99,14 @@
     id: 'kapi',
     ad: 'Son Sığınak',
     ikon: '🛸',
-    ozet: 'Uzay aracı geliyor! Yeşil yanan kapıya gir, ama tuzak inene kadar içeride bekleme.',
+    ozet: 'Kapılar açılınca kabine kaç, uzay aracı gidince hemen çık! Rakibini tuzağa it.',
     kurallar: [
-      'Meydanın etrafında <b>8 kabin</b> var. Her turda bazılarının ışığı <b>yeşil</b> yanar ve kapısı açılır, kırmızılar kapalıdır.',
-      '<b>10 saniye</b> sonra kapılar kapanır ve uzay aracı dışarıda kalanları alır. Her kabine <b>tek kişi</b> sığar.',
-      'Dikkat: süre içinde bir an kabinlerin tavanından <b>tuzak iner</b> (önce ışıklar uyarır). O an içerideysen ezilirsin! Tuzak kalkınca gir.',
-      'Açık kapı sayısı her tur azalır: <b>6 → 4 → 3 → 2 → 1</b> (ama her turda en az biri dışarıda kalır).',
-      'Koşarak çarptığın rakibini <b>itebilirsin</b>.',
+      'Meydanın <b>her tarafında</b> 8 kabin var. Her kabine <b>tek kişi</b> sığar.',
+      '<b>10 saniye</b> bütün kapılar kapalı. Sonra bazı kapılar <b>yeşil</b> yanıp açılır: <b>5 saniye</b> içinde en yakın açık kabine gir!',
+      'Kapılar kapanır, <b>uzay aracı</b> gelir ve dışarıda kalanları alır.',
+      'Sonra kapılar açılır (sarı ışık): <b>2 saniye</b> içinde çık! Çıkmayanın kafasına tavandan <b>tuzak</b> iner.',
+      'Çarparak <b>itebilirsin</b>: kapı açıkken rakibini kabine geri it, tuzak onun kafasına insin!',
+      'Açık kapı sayısı: 4 kişiyle <b>6 → 4 → 3 → 2 → 1</b>, 2-3 kişiyle <b>4 → 3 → 2 → 1</b>.',
       'Bilgisayar: <b>WASD / ok tuşları</b>. Telefon: <b>sol</b> joystick. Son kalan kazanır.',
     ],
     baslat,
@@ -116,7 +117,7 @@
     const d = M.yeni(b.oyuncular.map(o => ({ id: o.id, ad: o.ad, renk: o.renk, bot: o.bot })));
     const grup = new THREE.Group();
     Cekirdek.sahne.add(grup);
-    Cekirdek.kameraAyarla(9.6, 0.85, -2.2);
+    Cekirdek.kameraAyarla(10.4, 1.2);
 
     // ---------- Meydan ----------
     const zemin = new THREE.Mesh(new THREE.CylinderGeometry(M.R + 1.8, M.R + 2.2, 0.5, 64), new THREE.MeshStandardMaterial({ map: zeminDokusu(), metalness: 0.4, roughness: 0.6 }));
@@ -134,8 +135,9 @@
       grup.add(kb.g);
       return kb;
     });
-    function lambaCiz(kb, yesil) {
-      const c = yesil ? 0x3dff6a : 0xff2030;
+    // Işık: kırmızı (kapalı), yeşil (gir), sarı (çık!)
+    function lambaCiz(kb, renk) {
+      const c = renk === true ? 0x3dff6a : renk === 'sari' ? 0xffc21a : renk ? renk : 0xff2030;
       kb.lambaMal.color.set(c); kb.isik.color.set(c); kb.hale.material.color.set(c);
     }
     KB.forEach(kb => lambaCiz(kb, false));
@@ -158,11 +160,11 @@
       o.hedefX = o.x; o.hedefZ = o.z;
     });
     const ben = d.oyuncular.find(o => o.id === b.benId);
-    let durdu = false, birikim = 0, bittiMi = false, sonSn = null, tuzakDurum = 'yok', tuzakT = 0;
+    let durdu = false, birikim = 0, bittiMi = false, sonSn = null, tuzakUyari = false, tuzakInik = false, tuzakY = H - 0.25;
 
     function hudOyuncular() { b.hud.oyuncular(d.oyuncular.map(o => ({ ...o, ben: o.id === b.benId }))); }
     hudOyuncular();
-    b.hud.bilgi('🛸 Uzay aracı geliyor! Yeşil yanan kapıya gir. Tuzağa dikkat!');
+    b.hud.bilgi('🛸 Kapılar açılınca en yakın yeşil kapıya koş! Uzay aracı gidince hemen çık.');
     b.hud.ipucu(Kontrol.dokunmatik ? '' : 'WASD / oklar: yürü · Çarparak it!');
 
     function olu(id, nasil) {
@@ -182,28 +184,21 @@
 
     // ---------- Olaylar (herkeste görsel) ----------
     function olayIsle(ol) {
-      if (ol.tip === 'acik') {
-        ol.acik.forEach(i => { KB[i].acik = true; lambaCiz(KB[i], true); });
-        KB.forEach((kb, i) => { if (!ol.acik.includes(i)) { kb.acik = false; lambaCiz(kb, false); } });
-        ufoDurum = 'yaklasiyor';
-        ufo.g.position.set(0, 26, -80);
-        Ses.din(true);
-        b.hud.bilgi(`🟢 ${ol.acik.length} kapı açık! İçeri gir ama tuzağa dikkat.`);
-      } else if (ol.tip === 'tuzak') {
-        tuzakDurum = ol.durum; tuzakT = 0;
-        if (ol.durum === 'uyari') { Ses.uyari(); b.hud.bilgi('⚠️ TUZAK İNİYOR! Kabinden çık!', true); }
-        else if (ol.durum === 'asagi') { Ses.patlama(); Cekirdek.salla(0.2); }
-        else if (ol.durum === 'bitti') b.hud.bilgi('✅ Tuzak kalktı. Şimdi gir!');
-      } else if (ol.tip === 'ezildi') {
-        ol.olenler.forEach(id => olu(id, 'tuzak'));
-        const adlar = ol.olenler.map(id => d.oyuncular.find(p => p.id === id).ad);
-        b.hud.bilgi(ol.olenler.includes(b.benId) ? '💀 Tuzak seni ezdi! Diğerlerini izliyorsun…' : `💀 Tuzak ezdi: ${adlar.join(', ')}`, true);
-        if (ol.olenler.includes(b.benId)) b.hud.perde('flas');
-        hudOyuncular();
-      } else if (ol.tip === 'kapanis') {
+      if (ol.tip === 'bekle') {
         KB.forEach(kb => { kb.acik = false; lambaCiz(kb, false); });
+        tuzakInik = false; tuzakUyari = false;
+        ufoDurum = 'uzak'; ufo.g.position.set(0, 26, -80); ufo.isin.material.opacity = 0;
+        b.hud.bilgi('⏳ Kapılar birazdan açılacak. Hazır ol!');
+      } else if (ol.tip === 'acik') {
+        ol.acik.forEach(i => { KB[i].acik = true; lambaCiz(KB[i], true); });
+        ufoDurum = 'yaklasiyor';
+        Ses.din(true);
+        b.hud.bilgi(`🟢 ${ol.acik.length} kapı açıldı! Hemen gir!`, true);
+      } else if (ol.tip === 'kapanis') {
+        KB.forEach(kb => { kb.acik = false; if (!ol.kilit) lambaCiz(kb, false); });
         Ses.dusus();
-        ufoDurum = 'ustte';
+        if (!ol.kilit) { ufoDurum = 'ustte'; b.hud.bilgi('🛸 Uzay aracı geldi!'); }
+        else { tuzakUyari = false; KB.forEach(kb => lambaCiz(kb, false)); }
       } else if (ol.tip === 'saldiri') {
         Ses.belir(); Ses.dusus();
         Cekirdek.salla(0.35);
@@ -213,19 +208,33 @@
         hudOyuncular();
       } else if (ol.tip === 'cikis') {
         ufoDurum = 'gidiyor';
-        ol.yerler.forEach(([id, x, z]) => { const o = d.oyuncular.find(p => p.id === id); o.x = o.hedefX = x; o.z = o.hedefZ = z; });
-        b.hud.bilgi('Hazır ol, yeni tur geliyor…');
+        ol.acik.forEach(i => { KB[i].acik = true; lambaCiz(KB[i], 'sari'); });
+        Ses.din();
+        b.hud.bilgi('🏃 Kapılar açıldı: HEMEN ÇIK! Tuzak inecek. (Rakibini içeri itebilirsin!)', true);
+      } else if (ol.tip === 'tuzakUyari') {
+        tuzakUyari = true;
+        Ses.uyari();
+        b.hud.bilgi('⚠️ TUZAK İNİYOR!', true);
+      } else if (ol.tip === 'tuzak') {
+        tuzakInik = true; tuzakUyari = false;
+        Ses.patlama(); Cekirdek.salla(0.25);
+        ol.olenler.forEach(id => olu(id, 'tuzak'));
+        if (ol.olenler.length) {
+          const adlar = ol.olenler.map(id => d.oyuncular.find(p => p.id === id).ad);
+          b.hud.bilgi(ol.olenler.includes(b.benId) ? '💀 Tuzak seni ezdi! Diğerlerini izliyorsun…' : `💀 Tuzak ezdi: ${adlar.join(', ')}`, true);
+          if (ol.olenler.includes(b.benId)) b.hud.perde('flas');
+        } else b.hud.bilgi('Herkes zamanında çıktı.');
+        hudOyuncular();
       } else if (ol.tip === 'it') {
         Ses.isabet();
       } else if (ol.tip === 'bitti') bitir();
     }
     // Misafir: evden gelen olayı kendi kopyasına işler
     function aynayaIsle(ol) {
-      if (ol.tip === 'acik') { d.tur = ol.tur; d.kapilar.forEach((k, i) => { k.acik = ol.acik.includes(i); k.dolu = null; }); }
+      if (ol.tip === 'bekle') { d.tur = ol.tur; d.kapilar.forEach(k => { k.acik = false; k.dolu = null; }); }
+      else if (ol.tip === 'acik' || ol.tip === 'cikis') { d.acikKapilar = ol.acik; d.kapilar.forEach((k, i) => { k.acik = ol.acik.includes(i); }); }
       else if (ol.tip === 'kapanis') d.kapilar.forEach(k => { k.acik = false; });
-      else if (ol.tip === 'tuzak') d.tuzak.durum = ol.durum;
-      else if (ol.tip === 'ezildi' || ol.tip === 'saldiri') (ol.olenler || []).forEach(id => { const o = d.oyuncular.find(p => p.id === id); if (o.canli) { o.canli = false; o.olumSirasi = ++d.olumSayac; o.neden = ol.tip === 'ezildi' ? 'tuzak' : 'uzay'; o.olumTuru = d.tur; } });
-      else if (ol.tip === 'cikis') d.kapilar.forEach(k => { k.dolu = null; k.acik = false; });
+      else if (ol.tip === 'saldiri' || ol.tip === 'tuzak') (ol.olenler || []).forEach(id => { const o = d.oyuncular.find(p => p.id === id); if (o.canli) { o.canli = false; o.olumSirasi = ++d.olumSayac; o.neden = ol.tip === 'tuzak' ? 'tuzak' : 'uzay'; o.olumTuru = d.tur; } });
       else if (ol.tip === 'it' && ol.id === b.benId) { ben.vx += ol.vx; ben.vz += ol.vz; }
       else if (ol.tip === 'bitti') { d.bitti = true; d.kazanan = ol.kazanan; }
     }
@@ -294,7 +303,7 @@
           // Misafir: kendi robotumu yürütürüm (kapı ve kabin kurallarını da uygularım)
           d.fazKalan -= dt;
           if (ben.canli) {
-            const hareket = d.faz === 'acik' || d.faz === 'kapanis' || d.faz === 'saldiri';
+            const hareket = d.faz !== 'baslangic';
             let ax = hareket ? hx : 0, az = hareket ? hz : 0;
             const L = Math.hypot(ax, az); if (L > 1) { ax /= L; az /= L; }
             const ex = ben.x, ez = ben.z;
@@ -312,47 +321,38 @@
         }
       }
 
-      // Üst yazı: kalan süre
+      // Üst yazı (sol üstte): aşamaya göre kalan süre
       if (!bittiMi) {
-        if (d.faz === 'baslangic') {
-          const sn = Math.max(1, Math.ceil(d.fazKalan));
-          if (sn !== sonSn) { sonSn = sn; Ses.bip(); }
-          b.hud.buyuk('HAZIR', String(sn), 'yanda');
-        } else if (d.faz === 'acik') {
-          const sn = Math.max(0, Math.ceil(d.fazKalan));
-          if (sn !== sonSn) { sonSn = sn; if (sn <= 3 && sn > 0) Ses.tik(); }
-          b.hud.buyuk(`🚪 ${d.kapilar.filter(k => k.acik).length} KAPI`, String(sn), sn <= 3 ? 'ates yanda' : 'yanda', false);
-        } else if (d.faz === 'kapanis' || d.faz === 'saldiri') b.hud.buyuk('🛸', '', 'ates yanda', false);
-        else b.hud.buyuk(`TUR ${d.tur + 1}`, '', 'yanda', false);
+        const sn = Math.max(0, Math.ceil(d.fazKalan));
+        const yaz = { baslangic: ['HAZIR', ''], bekle: ['⏳ KAPILAR AÇILACAK', ''], giris: [`🚪 ${d.kapilar.filter(k => k.acik).length} KAPI · GİR!`, 'ates'], kapanis: ['🛸', 'ates'], saldiri: ['🛸', 'ates'], cikis: ['🏃 ÇIK!', 'ates'], tuzak: ['💀', 'ates'], kilit: ['', ''] }[d.faz] || ['', ''];
+        const sayac = ['baslangic', 'bekle', 'giris', 'cikis'].includes(d.faz) ? String(Math.max(1, sn)) : '';
+        if (sn !== sonSn) { sonSn = sn; if (d.faz === 'baslangic' || (d.faz === 'bekle' && sn <= 3) || d.faz === 'giris') Ses.tik(); }
+        b.hud.buyuk(yaz[0], sayac, (yaz[1] + ' yanda').trim(), false);
       }
 
-      // Kapılar: açıkken yukarı kayar; tuzak inip kalkar; uyarıda kabin içi kırmızı yanıp söner
-      tuzakT += dt;
+      // Kapılar yukarı kayar; tuzak çıkışta iner, yeni tura kadar inik kalır
+      const hedefTuzak = tuzakInik ? 0.6 : H - 0.25;
+      tuzakY += (hedefTuzak - tuzakY) * Math.min(1, dt * (tuzakInik ? 22 : 3));
       KB.forEach((kb, i) => {
         const hedefY = kb.acik ? H - 0.05 : 0;
         kb.kapiY += (hedefY - kb.kapiY) * Math.min(1, dt * 9);
         kb.kapi.position.y = H / 2 + kb.kapiY;
-        let ty = H - 0.25;
-        if (kb.acik || tuzakDurum === 'asagi' || tuzakDurum === 'kalkis') {
-          if (tuzakDurum === 'inis') ty = H - 0.25 - (H - 0.95) * Math.min(1, tuzakT / M.TUZAK.inis);
-          else if (tuzakDurum === 'asagi') ty = 0.6;
-          else if (tuzakDurum === 'kalkis') ty = 0.6 + (H - 0.85) * Math.min(1, tuzakT / M.TUZAK.kalkis);
-        }
-        kb.tuzak.position.y = ty;
-        const uyar = (tuzakDurum === 'uyari' || tuzakDurum === 'inis') && kb.acik;
+        const buKabin = (d.acikKapilar || []).includes(i);
+        kb.tuzak.position.y = buKabin ? tuzakY : H - 0.25;
+        const uyar = tuzakUyari && buKabin;
         kb.blokMal.emissiveIntensity = uyar ? (Math.floor(t * 8) % 2 ? 0.9 : 0.1) : 0;
+        if (uyar) lambaCiz(kb, Math.floor(t * 8) % 2 ? 0xff2030 : 0xffc21a);
         kb.ic.material.color.set(uyar && Math.floor(t * 8) % 2 ? 0xff2030 : 0x2ee6ff);
         kb.ic.material.opacity = d.kapilar[i].dolu !== null ? 0.4 : 0.15;
         kb.hale.scale.setScalar(1.1 + Math.sin(t * 5 + i) * 0.12);
       });
 
-      // Uzay aracı
+      // Uzay aracı: kapılar açıkken yaklaşır, kapanınca meydanın üstüne gelir, çıkışta gider
       ufo.isiklar.forEach((m, i) => { m.visible = Math.floor(t * 6 + i) % 2 === 0; });
       ufo.g.rotation.y += dt * 0.8;
       if (ufoDurum === 'yaklasiyor') {
-        // Açık süre boyunca ufuktan meydanın üstüne gelir
-        const p = d.faz === 'acik' ? 1 - Math.max(0, d.fazKalan) / M.SURE.acik : 1;
-        ufo.g.position.set(0, 26 - p * 17, -80 + p * 79);
+        const p = d.faz === 'giris' ? 1 - Math.max(0, d.fazKalan) / M.SURE.giris : 1;
+        ufo.g.position.set(0, 26 - p * 15, -80 + p * 78);
       } else if (ufoDurum === 'ustte') {
         ufo.g.position.lerp(new THREE.Vector3(0, 8.5, 0), Math.min(1, dt * 3));
         ufo.isin.material.opacity = Math.min(0.35, ufo.isin.material.opacity + dt);
