@@ -45,21 +45,25 @@
       grup.add(d, s);
     });
 
-    // Kolonlar: metal gövde, parlayan halkalar
-    const kolonMal = new THREE.MeshStandardMaterial({ color: 0x6a74a8, metalness: 0.6, roughness: 0.35 });
-    const halkaMal = new THREE.MeshBasicMaterial({ color: 0x2ee6ff });
-    M.KOLONLAR.forEach(([x, z]) => {
-      const k = new THREE.Mesh(new THREE.CylinderGeometry(M.KOLON_R, M.KOLON_R * 1.08, 2.6, 24), kolonMal);
-      k.position.set(x, 1.1, z); k.castShadow = k.receiveShadow = true;
-      grup.add(k);
+    // Kolonlar: metal gövde, parlayan halkalar. Her kolonun kendi rengi var (inmeden önce kırmızı yanar)
+    return M.KOLONLAR.map(([x, z]) => {
+      const kg = new THREE.Group();
+      kg.position.set(x, 0, z);
+      const mal = new THREE.MeshStandardMaterial({ color: 0x6a74a8, metalness: 0.6, roughness: 0.35, emissive: 0xff1030, emissiveIntensity: 0 });
+      const halkaMal = new THREE.MeshBasicMaterial({ color: 0x2ee6ff });
+      const k = new THREE.Mesh(new THREE.CylinderGeometry(M.KOLON_R, M.KOLON_R * 1.08, 2.6, 24), mal);
+      k.position.y = 1.1; k.castShadow = k.receiveShadow = true;
+      kg.add(k);
       [0.25, 1.6].forEach(y => {
         const r = new THREE.Mesh(new THREE.TorusGeometry(M.KOLON_R + 0.03, 0.035, 8, 32), halkaMal);
-        r.rotation.x = Math.PI / 2; r.position.set(x, y, z);
-        grup.add(r);
+        r.rotation.x = Math.PI / 2; r.position.y = y;
+        kg.add(r);
       });
       const isik = new THREE.PointLight(0x2ee6ff, 1.6, 4, 2);
-      isik.position.set(x, 0.6, z);
-      grup.add(isik);
+      isik.position.y = 0.6;
+      kg.add(isik);
+      grup.add(kg);
+      return { kg, mal, halkaMal, isik, uyari: false };
     });
   }
 
@@ -108,6 +112,7 @@
       'Kolonlu bir odadasınız. Herkesin silahı <b>kendiliğinden</b> ateş eder; sen yürür ve nişan alırsın.',
       'Kurşunlar <b>ağır çekimde</b> gelir: gördüğün kurşundan kenara çekil ya da kolonun arkasına saklan. Kurşun kolonda ve duvarda durur.',
       'Kurşunların hızı hep aynı ama her <b>5 saniyede</b> silahlar <b>daha sık</b> ateş eder. Sonunda kurşunlar <b>peş peşe, durmadan</b> çıkar!',
+      `Her <b>${M.KOLON_SN} saniyede</b> bir kolon önce kırmızı yanıp söner, sonra yere iner. Kimse elenmezse sonunda oda bomboş kalır!`,
       'Herkesin <b>3 canı</b> var. Vurulunca 1 can gider ve kısa süre yanıp sönersin (o sırada kurşun işlemez). Canı biten elenir.',
       'Bilgisayar: <b>WASD / ok tuşları</b> yürü, <b>fare</b> nişan. Telefon: <b>sol</b> joystick yürü, <b>sağ</b> joystick nişan.',
       'Ayakta kalan son robot kazanır.',
@@ -119,7 +124,7 @@
     const d = M.yeni(b.oyuncular.map(o => ({ id: o.id, ad: o.ad, renk: o.renk, bot: o.bot })));
     const grup = new THREE.Group();
     Cekirdek.sahne.add(grup);
-    odaKur(grup);
+    const KOLON = odaKur(grup);
     const R = {}, hafiza = {};
     d.oyuncular.forEach(o => {
       const r = Cekirdek.robotYap(o.renk, o.ad);
@@ -164,6 +169,19 @@
         const ad = d.oyuncular.find(p => p.id === ol.kim).ad;
         b.hud.bilgi(o.id === b.benId ? `💀 ${ad} seni eledi! Robotları izliyorsun…` : `💀 ${o.ad} elendi! (${ad} vurdu)`, o.id === b.benId);
         hudOyuncular();
+      } else if (ol.tip === 'kolonUyari') {
+        KOLON[ol.i].uyari = true;
+        Ses.uyari();
+        b.hud.bilgi('⚠️ Kırmızı yanan kolon iniyor! Arkasında saklanma.', true);
+      } else if (ol.tip === 'kolonGitti') {
+        const k = KOLON[ol.i];
+        k.uyari = false;
+        Ses.dusus();
+        Cekirdek.salla(0.2);
+        kivilcim(grup, M.KOLONLAR[ol.i][0], M.KOLONLAR[ol.i][1], 0xff3050, 18);
+        b.hud.bilgi(ol.kalan ? `🧱 Bir kolon indi! ${ol.kalan} kolon kaldı.` : '🧱 Son kolon da indi! Artık saklanacak yer yok!', !ol.kalan);
+        Cekirdek.animasyon(0.9, t => { k.kg.position.y = -2.8 * t * t; k.isik.intensity = 1.6 * (1 - t); })
+          .then(() => { k.kg.visible = false; });
       } else if (ol.tip === 'bitti') {
         bitir();
       }
@@ -225,6 +243,13 @@
         r.konum(o.x, o.z); r.yon(o.a);
         // Vurulduktan sonra dokunulmazken yanıp söner
         r.saydam(o.koruma > 0 ? (Math.floor(t * 12) % 2 ? 0.25 : 0.9) : 1);
+      });
+
+      // İnecek kolon kırmızı yanıp söner
+      KOLON.forEach(k => {
+        const yan = k.uyari && Math.floor(t * 4) % 2 === 0;
+        k.mal.emissiveIntensity = yan ? 0.9 : 0;
+        k.halkaMal.color.set(yan ? 0xff2040 : 0x2ee6ff);
       });
 
       // Kurşunlar

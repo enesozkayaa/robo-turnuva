@@ -10,6 +10,8 @@ const KursunMotor = (() => {
   const ODA = { w: 10, h: 6.5 };                       // yarı genişlik / yarı derinlik
   const KOLON_R = 0.7;
   const KOLONLAR = [[-5, -2.6], [0, -3.4], [5, -2.6], [-5, 2.6], [0, 3.4], [5, 2.6], [-1.8, 0], [1.8, 0]];
+  // Her KOLON_SN saniyede bir kolon yere iner (önce KOLON_UYARI sn kırmızı yanıp söner); en sonda oda boş kalır
+  const KOLON_SN = 20, KOLON_UYARI = 2;
   const ROBOT_R = 0.45, KURSUN_R = 0.16;
   const HIZ = 3.6;                                     // robot yürüme hızı
   const CAN = 3, KORUMA = 1.2;                         // vurulunca kısa süre dokunulmaz
@@ -18,7 +20,7 @@ const KursunMotor = (() => {
   // Kurşun hızı hep aynı. Değişen atış sıklığı: her 5 saniyede silahlar daha sık ateş eder,
   // sonunda kurşunlar peş peşe, durmadan çıkar.
   const KURSUN_HIZI = 5;
-  const SIKLASMA_SN = 5, SIKLASMA_KAT = 0.6, ILK_ARALIK = 1.15, EN_KISA_ARALIK = 0.12;
+  const SIKLASMA_SN = 5, SIKLASMA_KAT = 0.75, ILK_ARALIK = 1.15, EN_KISA_ARALIK = 0.12;
   const hizBasamagi = t => Math.max(0, Math.floor(t / SIKLASMA_SN));
   const kursunHizi = () => KURSUN_HIZI;
   const atesAraligi = t => Math.max(EN_KISA_ARALIK, ILK_ARALIK * Math.pow(SIKLASMA_KAT, hizBasamagi(t)));
@@ -29,6 +31,9 @@ const KursunMotor = (() => {
   function yeni(oyuncular) {
     return {
       t: -BASLANGIC, bitti: false, kazanan: null, sonrakiK: 1, kursunlar: [],
+      kolonlar: KOLONLAR.map(([x, z], i) => ({ i, x, z })),
+      kolonSirasi: KOLONLAR.map((_, i) => i).sort(() => Math.random() - 0.5),
+      sonrakiKolonT: KOLON_SN, uyariKolon: null,
       oyuncular: oyuncular.map((o, i) => {
         const [x, z] = KOSELER[i % 4];
         return { ...o, x, z, a: Math.atan2(-z, -x), vx: 0, vz: 0, can: CAN, canli: true, koruma: 0, atesSayac: 0.6 + i * 0.35, olumSirasi: 0 };
@@ -38,10 +43,10 @@ const KursunMotor = (() => {
   const canlilar = d => d.oyuncular.filter(o => o.canli);
 
   // Robotu odanın ve kolonların içinden dışarı iter
-  function yerlestir(o) {
+  function yerlestir(d, o) {
     o.x = Math.max(-ODA.w + ROBOT_R, Math.min(ODA.w - ROBOT_R, o.x));
     o.z = Math.max(-ODA.h + ROBOT_R, Math.min(ODA.h - ROBOT_R, o.z));
-    KOLONLAR.forEach(([kx, kz]) => {
+    d.kolonlar.forEach(({ x: kx, z: kz }) => {
       const dx = o.x - kx, dz = o.z - kz, L = Math.hypot(dx, dz), en = KOLON_R + ROBOT_R;
       if (L < en) { const k = L > 1e-6 ? en / L : 0; o.x = kx + (L > 1e-6 ? dx * k : en); o.z = kz + dz * k; }
     });
@@ -64,16 +69,30 @@ const KursunMotor = (() => {
       if (!basladi) hx = hz = 0;
       const ex = o.x, ez = o.z;
       o.x += hx * HIZ * dt; o.z += hz * HIZ * dt;
-      yerlestir(o);
+      yerlestir(d, o);
       o.vx = (o.x - ex) / dt; o.vz = (o.z - ez) / dt;
       if (o.koruma > 0) o.koruma = Math.max(0, o.koruma - dt);
     });
     // Robotlar birbirinin içine girmesin
     for (let i = 0; i < yasayan.length; i++) for (let j = i + 1; j < yasayan.length; j++) {
       const p = yasayan[i], q = yasayan[j], dx = q.x - p.x, dz = q.z - p.z, L = Math.hypot(dx, dz), en = ROBOT_R * 2;
-      if (L < en && L > 1e-6) { const it = (en - L) / 2; p.x -= dx / L * it; p.z -= dz / L * it; q.x += dx / L * it; q.z += dz / L * it; yerlestir(p); yerlestir(q); }
+      if (L < en && L > 1e-6) { const it = (en - L) / 2; p.x -= dx / L * it; p.z -= dz / L * it; q.x += dx / L * it; q.z += dz / L * it; yerlestir(d, p); yerlestir(d, q); }
     }
     if (!basladi) return olaylar;
+
+    // Kolonlar birer birer yere iner
+    if (d.kolonlar.length) {
+      if (d.uyariKolon === null && d.t >= d.sonrakiKolonT - KOLON_UYARI) {
+        d.uyariKolon = d.kolonSirasi.find(i => d.kolonlar.some(k => k.i === i));
+        olaylar.push({ tip: 'kolonUyari', i: d.uyariKolon });
+      }
+      if (d.t >= d.sonrakiKolonT) {
+        d.kolonlar = d.kolonlar.filter(k => k.i !== d.uyariKolon);
+        olaylar.push({ tip: 'kolonGitti', i: d.uyariKolon, kalan: d.kolonlar.length });
+        d.uyariKolon = null;
+        d.sonrakiKolonT += KOLON_SN;
+      }
+    }
 
     // Kendiliğinden ateş
     yasayan.forEach(o => {
@@ -83,7 +102,7 @@ const KursunMotor = (() => {
       const ca = Math.cos(o.a), sa = Math.sin(o.a), yan = 0.41;
       const k = { k: d.sonrakiK++, sahip: o.id, x: o.x + ca * 0.75 - sa * yan, z: o.z + sa * 0.75 + ca * yan, dx: ca, dz: sa, hiz: kursunHizi(d.t) };
       // Namlu kolonun içindeyse kurşun hemen söner
-      if (KOLONLAR.some(([kx, kz]) => Math.hypot(k.x - kx, k.z - kz) < KOLON_R)) { olaylar.push({ tip: 'carpti', x: k.x, z: k.z, sahip: o.id, k: k.k }); return; }
+      if (d.kolonlar.some(({ x: kx, z: kz }) => Math.hypot(k.x - kx, k.z - kz) < KOLON_R)) { olaylar.push({ tip: 'carpti', x: k.x, z: k.z, sahip: o.id, k: k.k }); return; }
       d.kursunlar.push(k);
       olaylar.push({ tip: 'ates', id: o.id, k: k.k });
     });
@@ -94,7 +113,7 @@ const KursunMotor = (() => {
       k.hiz = hiz;
       k.x += k.dx * hiz * dt; k.z += k.dz * hiz * dt;
       if (Math.abs(k.x) > ODA.w - KURSUN_R || Math.abs(k.z) > ODA.h - KURSUN_R) { olaylar.push({ tip: 'carpti', x: k.x, z: k.z, sahip: k.sahip, k: k.k }); return false; }
-      if (KOLONLAR.some(([kx, kz]) => Math.hypot(k.x - kx, k.z - kz) < KOLON_R + KURSUN_R)) { olaylar.push({ tip: 'carpti', x: k.x, z: k.z, sahip: k.sahip, k: k.k }); return false; }
+      if (d.kolonlar.some(({ x: kx, z: kz }) => Math.hypot(k.x - kx, k.z - kz) < KOLON_R + KURSUN_R)) { olaylar.push({ tip: 'carpti', x: k.x, z: k.z, sahip: k.sahip, k: k.k }); return false; }
       const h = canlilar(d).find(o => o.id !== k.sahip && Math.hypot(o.x - k.x, o.z - k.z) < ROBOT_R + KURSUN_R);
       if (!h) return true;
       if (h.koruma > 0) return true;   // dokunulmazken kurşun içinden geçer
@@ -163,7 +182,7 @@ const KursunMotor = (() => {
       for (let i = 0; i < 10; i++) {
         const x = (rnd() * 2 - 1) * (ODA.w - 1.2), z = (rnd() * 2 - 1) * (ODA.h - 1.2);
         const m = Math.hypot(x - h.x, z - h.z);
-        if (m > 4 && m < 9 && !KOLONLAR.some(([kx, kz]) => Math.hypot(x - kx, z - kz) < KOLON_R + 0.8)) { hafiza.dolas = [x, z]; break; }
+        if (m > 4 && m < 9 && !d.kolonlar.some(({ x: kx, z: kz }) => Math.hypot(x - kx, z - kz) < KOLON_R + 0.8)) { hafiza.dolas = [x, z]; break; }
       }
       hafiza.dolasSure = 1.5 + rnd() * 2;
     }
@@ -172,7 +191,7 @@ const KursunMotor = (() => {
     return { hx: dx / L * 0.8, hz: dz / L * 0.8, a };
   }
 
-  return { ODA, KOLON_R, KOLONLAR, ROBOT_R, KURSUN_R, HIZ, CAN, BASLANGIC, kursunHizi, atesAraligi, hizKati, hizBasamagi, sonBasamakMi, yeni, adim, botGirdi, canlilar };
+  return { ODA, KOLON_R, KOLONLAR, KOLON_SN, KOLON_UYARI, ROBOT_R, KURSUN_R, HIZ, CAN, BASLANGIC, kursunHizi, atesAraligi, hizKati, hizBasamagi, sonBasamakMi, yeni, adim, botGirdi, canlilar };
 })();
 
 if (typeof module !== 'undefined') module.exports = KursunMotor;
