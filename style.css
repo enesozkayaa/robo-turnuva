@@ -312,7 +312,7 @@ body.dokunmatik #bzDugmeler {
   background: linear-gradient(135deg, #3a3f60, #23263a); box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
 }
 #evEylem.acik { background: linear-gradient(135deg, #ffe08a, #ffb020); color: #2a1a00; box-shadow: 0 0 24px rgba(255, 210, 90, 0.7); }
-body.dokunmatik #evEylem { bottom: calc(180px + env(safe-area-inset-bottom)); }
+body.dokunmatik #evEylem { display: none; }   /* telefonda: sağ tarafa kısa dokunuş */
 
 /* ---------- Kutu Kapmaca: al / bırak düğmesi ---------- */
 #flEylem {
@@ -321,7 +321,12 @@ body.dokunmatik #evEylem { bottom: calc(180px + env(safe-area-inset-bottom)); }
   background: linear-gradient(135deg, #b07a3e, #7a4a20); box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
 }
 #flEylem.yesil { background: linear-gradient(135deg, #7dff4a, #1aa64a); color: #06240f; box-shadow: 0 0 24px rgba(125, 255, 74, 0.7); }
-body.dokunmatik #flEylem { bottom: calc(180px + env(safe-area-inset-bottom)); }
+/* Telefonda: nişan kullanmayan oyunlarda sağdaki hedef joystick'i yok, oyunun düğmesi onun yerinde büyük ve yuvarlak */
+body.sagJoyYok #dokunmaAlani .joy.sag { display: none !important; }
+body.dokunmatik #flEylem.sagDugme, body.dokunmatik #myTara.sagDugme {
+  left: auto; right: calc(22px + env(safe-area-inset-right)); transform: none; bottom: calc(34px + env(safe-area-inset-bottom));
+  width: 132px; height: 132px; padding: 8px; border-radius: 50%; font-size: 15px; line-height: 1.25;
+}
 
 /* ---------- Mayın Koridoru: tarama düğmesi ---------- */
 #myTara {
@@ -330,7 +335,6 @@ body.dokunmatik #flEylem { bottom: calc(180px + env(safe-area-inset-bottom)); }
   background: linear-gradient(135deg, #3a3f60, #23263a); box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
 }
 #myTara.hazir { background: linear-gradient(135deg, #2ee6ff, #2b7be6); box-shadow: 0 0 24px rgba(46, 230, 255, 0.7); }
-body.dokunmatik #myTara { bottom: calc(180px + env(safe-area-inset-bottom)); }
 
 /* ---------- Küp Hafızası: düğmeler ---------- */
 #kupDugmeler {

@@ -226,6 +226,8 @@ const Salon = (() => {
     $('odaBilgisi').innerHTML = `🌐 Oda <b>${Ag.kod}</b>`;
     Ses.ortam(true);
     Kontrol.ac(true);
+    // Nişan kullanmayan oyunlarda telefonda sağdaki hedef joystick'i gizlenir, oyunun düğmesi onun yerine geçer
+    document.body.classList.toggle('sagJoyYok', !oyun.nisan);
     kanal = kanalYap(mod, benId);
     calisan = oyun.baslat({ oyuncular, benId, hud: Hud, kanal, ayar: { ...oyunAyari(oyun), ...oyunAyar }, bitti: sonuc => oyunBitti(oyuncular, benId, sonuc) });
   }

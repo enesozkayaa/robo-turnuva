@@ -75,6 +75,7 @@
     const dugme = document.createElement('button');
     dugme.id = 'myTara';
     dugme.textContent = '📡 TARA';
+    dugme.className = 'sagDugme';   // telefonda sağdaki joystick'in yerinde
     document.body.appendChild(dugme);
     dugme.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); taramaIstek = true; });
     const fareBas = e => { if ((e.target === Cekirdek.tuval || e.target.id === 'dokunmaAlani') && e.button === 0 && e.pointerType === 'mouse') taramaIstek = true; };

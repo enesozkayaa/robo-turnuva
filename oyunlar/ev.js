@@ -76,6 +76,7 @@
 
   Salon.oyunEkle({
     id: 'ev',
+    nisan: true,          // telefonda sağ (nişan) joystick'i kullanılır
     ad: 'Karanlık Ev',
     ikon: '🔦',
     ozet: 'Silahı bulan avcı olur, ışıklar söner. Fenerle saklan, avcıya yakalanma!',
@@ -86,7 +87,7 @@
       'Avcı <b>lazerle</b> ateş eder: lazer duvar ve eşyadan geçmez, kapılardan geçer. Bir eşyanın arkasına saklan!',
       'Sonra <b>ışıklar açılır</b> (10 saniye): kaç, avcı da kovalar.',
       `Puan: tur sonunda kalan her saklanan <b>+${M.PUAN.kalan}</b>, avcı vurduğu her kişi için <b>+${M.PUAN.vurus}</b>. En çok puanı toplayan kazanır.`,
-      'Bilgisayar: <b>WASD</b> yürü, <b>fare</b> nişan, <b>sol tık / boşluk</b>: fener aç-kapa ya da ateş. Telefon: sol joystick yürü, sağ joystick nişan, alttaki düğme.',
+      'Bilgisayar: <b>WASD</b> yürü, <b>fare</b> nişan, <b>sol tık / boşluk</b>: fener aç-kapa ya da ateş. Telefon: sol joystick yürü, sağ joystick nişan; sağ tarafa <b>kısa dokun</b>: ateş / fener.',
     ],
     ayarlar: [{ id: 'tur', ad: 'Kaç tur?', secenekler: [1, 2, 3, 4, 5], varsayilan: 3 }],
     baslat,
@@ -131,6 +132,8 @@
     };
     window.addEventListener('pointerdown', fareBas);
     window.addEventListener('keydown', tus);
+    // Telefonda düğme yok: nişan aldığın sağ tarafa kısa dokun → ateş (avcı) / fener (saklanan)
+    Kontrol.sagDokununca(eylem);
 
     function hudOyuncular() {
       if (!d) return;
@@ -433,6 +436,7 @@
         window.removeEventListener('pointerdown', fareBas);
         window.removeEventListener('keydown', tus);
         dugme.remove();
+        Kontrol.sagDokununca(null);
         Object.values(R).forEach(x => x.r.sil());
         Cekirdek.sahne.remove(grup);
         grup.traverse(n => { n.geometry?.dispose(); if (n.isLight && n.shadow?.map) n.shadow.map.dispose(); });

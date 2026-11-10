@@ -105,6 +105,7 @@
 
   Salon.oyunEkle({
     id: 'kursun',
+    nisan: true,          // telefonda sağ (nişan) joystick'i kullanılır
     ad: 'Ağır Çekim',
     ikon: '⏳',
     ozet: 'Kurşunlar ağır çekimde geliyor ama atışlar gittikçe sıklaşıyor. Kaç, saklan, son kalan sen ol!',

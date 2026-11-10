@@ -82,7 +82,7 @@
       'Kutunun önüne gel ve <b>AL</b> (boşluk / sol tık / düğme). Kendi bölgene götür: bölgen <b>yeşil</b> yanınca boş bir yere <b>BIRAK</b>. Kutular üst üste konmaz; taşıdığın kutuyla diğerlerini ileri itebilirsin.',
       'Rakibin bölgesindeki kutuyu alıp kendine götürebilirsin! Kutu taşıyana hızla çarparsan kutusunu düşürür.',
       'Süre bitince bölgesinde <b>en çok kutu</b> olan kazanır.',
-      'Bilgisayar: <b>WASD / ok tuşları</b> sür. Telefon: <b>sol</b> joystick, alttaki düğme.',
+      'Bilgisayar: <b>WASD / ok tuşları</b> sür. Telefon: <b>sol</b> joystick ile sür, <b>sağdaki</b> büyük düğmeyle kutuyu al-bırak.',
     ],
     ayarlar: [{ id: 'sure', ad: 'Süre (sn)', secenekler: [60, 90, 120], varsayilan: 90 }],
     baslat,
@@ -150,6 +150,7 @@
     dugme.id = 'flEylem';
     dugme.textContent = '📦 AL';
     document.body.appendChild(dugme);
+    dugme.className = 'sagDugme';   // telefonda sağdaki joystick'in yerinde
     dugme.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); eylemIstek = true; });
     const fareBas = e => { if ((e.target === Cekirdek.tuval || e.target.id === 'dokunmaAlani') && e.button === 0 && e.pointerType === 'mouse') eylemIstek = true; };
     const tus = e => { if (!e.repeat && (e.code === 'Space' || e.code === 'Enter') && document.activeElement?.tagName !== 'INPUT') { e.preventDefault(); eylemIstek = true; } };

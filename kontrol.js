@@ -11,7 +11,8 @@ const Kontrol = (() => {
   let fare = null;                      // {x, y} ekran noktası (bilgisayar)
   let aktif = false;
   const sol = { id: null, x: 0, y: 0, dx: 0, dy: 0 };
-  const sag = { id: null, x: 0, y: 0, dx: 0, dy: 0, aci: null };
+  const sag = { id: null, x: 0, y: 0, dx: 0, dy: 0, aci: null, t0: 0, enUzak: 0 };
+  let sagDokunma = null;               // sağ tarafa kısa dokunuş (ör. ateş) — oyun isterse kurar
   const YARICAP = 55;
   let dokunmatik = matchMedia('(pointer: coarse)').matches;
   let elSol, elSag;
@@ -32,9 +33,11 @@ const Kontrol = (() => {
     alan.addEventListener('pointerdown', e => {
       if (e.pointerType === 'mouse') return;
       dokunmatik = true; gorunum();
-      const j = e.clientX < window.innerWidth / 2 ? sol : sag;
+      // Nişan kullanılmayan oyunlarda ekranın her yeri yürüme joystick'i
+      const j = (e.clientX < window.innerWidth / 2 || document.body.classList.contains('sagJoyYok')) ? sol : sag;
       if (j.id !== null) return;
       j.id = e.pointerId; j.x = e.clientX; j.y = e.clientY; j.dx = j.dy = 0;
+      if (j === sag) { sag.t0 = performance.now(); sag.enUzak = 0; }
       alan.setPointerCapture(e.pointerId);
       ciz();
       e.preventDefault();
@@ -44,6 +47,7 @@ const Kontrol = (() => {
       if (!j) return;
       let dx = e.clientX - j.x, dy = e.clientY - j.y;
       const L = Math.hypot(dx, dy);
+      if (j === sag) sag.enUzak = Math.max(sag.enUzak, L);
       if (L > YARICAP) { dx *= YARICAP / L; dy *= YARICAP / L; }
       j.dx = dx / YARICAP; j.dy = dy / YARICAP;
       if (j === sag && L > 12) sag.aci = Math.atan2(dy, dx);
@@ -55,6 +59,8 @@ const Kontrol = (() => {
       if (!j) return;
       j.id = null; j.dx = j.dy = 0;
       ciz();
+      // Kısa ve kımıldamadan dokunuş = sağ tarafa "bas" (nişan yönü değişmez)
+      if (j === sag && e.type === 'pointerup' && sagDokunma && sag.enUzak < 14 && performance.now() - sag.t0 < 350) sagDokunma();
     };
     alan.addEventListener('pointerup', birak);
     alan.addEventListener('pointercancel', birak);
@@ -109,6 +115,8 @@ const Kontrol = (() => {
     ac(v) { aktif = v; if (!v) { sol.id = sag.id = null; sol.dx = sol.dy = sag.dx = sag.dy = 0; sag.aci = null; ciz(); } gorunum(); },
     // Yeni turda sağ joystick'in eski yönü kalmasın diye (isteğe bağlı)
     nisanSifirla(a = null) { sag.aci = a; },
+    // Telefonda sağ (nişan) tarafına kısa dokunuşta çağrılır; null verilirse kapanır
+    sagDokununca(fn) { sagDokunma = fn; },
     get dokunmatik() { return dokunmatik; },
   };
 })();

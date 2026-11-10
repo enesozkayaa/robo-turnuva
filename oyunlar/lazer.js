@@ -117,6 +117,7 @@
 
   Salon.oyunEkle({
     id: 'lazer',
+    nisan: true,          // telefonda sağ (nişan) joystick'i kullanılır
     ad: 'Görünmez Lazer',
     ikon: '👻',
     ozet: '5 saniye herkes görünmez. Saklan, lazerini çevir, ATEŞ! Son kalan kazanır.',
