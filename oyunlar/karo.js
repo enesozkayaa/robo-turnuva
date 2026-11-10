@@ -69,7 +69,7 @@
     ozet: 'Duvarda hangi işaret çıkarsa o kareye koş! Diğerleri titreyip düşer. İt, kaç, son kalan sen ol.',
     kurallar: [
       'Yerde 8×8 kare var; her karenin üstünde parlayan bir <b>kare</b>, <b>yuvarlak</b> ya da <b>üçgen</b> işareti var.',
-      'Her turda karşı duvardaki ekran döner, işaretler hızla değişir. <b>Son 2 saniye</b> kala doğru işaret belli olur: hemen o işaretli bir kareye koş!',
+      'Her turda duvardaki ekranda ve yerdeki karelerde işaretler <b>her saniye değişir</b>. <b>Son 3 saniye</b> kala doğru işaret belli olur ve yerdekiler sabitlenir: hemen o işaretli bir kareye koş!',
       'Süre bitince diğer kareler <b>titrer</b>, sonra <b>düşer</b>. Üstünde kalan da düşer ve elenir.',
       'Kareler düştükten sonra <b>3 saniye</b> itişme zamanı! Sonra düşenlerin <b>yarısı</b> küçük gruplar halinde sırayla geri gelir. Her turda işaretler karışır.',
       'Köşeleri birbirine değen iki kare arasından <b>çapraz geçebilirsin</b>; ama köşenin yanından, boşluktan geçersen düşersin!',
@@ -128,19 +128,25 @@
     });
     const ben = d.oyuncular.find(o => o.id === b.benId);
 
-    let durdu = false, birikim = 0, bittiMi = false, sonSn = null, gizli = true, sonTik = null;
+    let durdu = false, birikim = 0, bittiMi = false, sonSn = null, gizli = true, sonTik = null, duvarSekil = 0;
     function hudOyuncular() { b.hud.oyuncular(d.oyuncular.map(o => ({ ...o, ben: o.id === b.benId }))); }
     hudOyuncular();
-    b.hud.bilgi('Duvardaki işaret son 2 saniyede belli olur. O an doğru kareye koş!');
+    b.hud.bilgi('Duvardaki işaret son 3 saniyede belli olur. O an doğru kareye koş!');
     b.hud.ipucu(Kontrol.dokunmatik ? '' : 'WASD / oklar: yürü · Çarparak it!');
 
     // ---------- Olaylar (herkeste görsel) ----------
     function olayIsle(ol) {
       if (ol.tip === 'secim') {
         ol.sekiller.forEach((s, no) => karoSekil(no, s));
-        gizli = true; sonSn = null;
+        gizli = true; sonSn = null; duvarSekil = Math.floor(Math.random() * 3);
         Ses.din();
         b.hud.bilgi(`🎲 İşaret ${M.GOSTER_SN} saniye kala belli olacak. Hazır ol!`);
+      } else if (ol.tip === 'karistir') {
+        // Yerdeki işaretler ve duvardaki soluk işaret her saniye değişir
+        ol.sekiller.forEach((s, no) => karoSekil(no, s));
+        duvarSekil = (duvarSekil + 1 + Math.floor(Math.random() * 2)) % 3;
+        sonSn = null;
+        Ses.tik();
       } else if (ol.tip === 'goster') {
         gizli = false;
         duvarD.ciz(ol.hedef, '', M.GOSTER_SN);
@@ -181,6 +187,7 @@
     function aynayaIsle(ol) {
       if (ol.tip === 'secim') { d.tur = ol.tur; d.gosterildi = false; ol.sekiller.forEach((s, no) => { d.karolar[no].sekil = s; d.karolar[no].titre = false; }); }
       else if (ol.tip === 'goster') { d.hedef = ol.hedef; d.gosterildi = true; }
+      else if (ol.tip === 'karistir') ol.sekiller.forEach((s, no) => { d.karolar[no].sekil = s; });
       else if (ol.tip === 'titreme') d.karolar.forEach(k => { k.titre = k.var && k.sekil !== d.hedef; });
       else if (ol.tip === 'dusus') ol.karolar.forEach(no => { d.karolar[no].var = false; d.karolar[no].titre = false; });
       else if (ol.tip === 'geriGel') ol.karolar.forEach(no => { d.karolar[no].var = true; });
@@ -282,11 +289,8 @@
           // Duvarda işaret ve kalan saniye (üstteki yazı duvarı kapatmasın)
           const sn = Math.max(0, Math.ceil(d.fazKalan));
           if (gizli) {
-            // İşaret belli değil: ekrandaki işaret döner ve hızla değişir (soluk renkte)
-            const s = Math.floor(t * 6) % 3;
-            duvarD.ciz(s, '', sn, t * 7);
-            sonSn = sn;
-            if (sn !== sonTik) { sonTik = sn; if (sn > M.GOSTER_SN) Ses.tik(); }
+            // İşaret belli değil: ekranda soluk renkte, her saniye başka bir işaret
+            if (sn !== sonSn) { sonSn = sn; duvarD.ciz(duvarSekil, '', sn, 0.35); }
           } else if (sn !== sonSn) { sonSn = sn; if (sn > 0) Ses.tik(); duvarD.ciz(d.hedef, '', sn); }
           b.hud.buyuk('');
         } else b.hud.buyuk('');

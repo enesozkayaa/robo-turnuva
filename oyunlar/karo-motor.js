@@ -16,7 +16,7 @@ const KaroMotor = (() => {
   const DESTEK = 0.12;                  // merkez, bir karenin bu kadar dışına taşabilir (köşeden çapraz geçiş)
   const HIZ = 4.2;
   const SURE = { secim: 10, titreme: 1.5, dusus: 1.1, itisme: 3, geriGel: 1, baslangic: 3 };
-  const GOSTER_SN = 2;            // işaret son kaç saniye kala belli olur
+  const GOSTER_SN = 3;            // işaret son kaç saniye kala belli olur (o ana kadar yerdeki işaretler de her saniye karışır)
   const GRUP_ARA = 0.45;          // geri gelen kare grupları arası süre
   const SEKILLER = ['kare', 'yuvarlak', 'ucgen'];
 
@@ -71,6 +71,7 @@ const KaroMotor = (() => {
       d.karolar.forEach(k => { k.titre = false; k.dusuyor = false; });
       d.hedef = Math.floor(rnd() * 3);
       d.gosterildi = false;
+      d.karisZaman = 1;
       // İşaret henüz belli değil: misafirlere de söylenmez (gösterilince 'goster' olayıyla gider)
       olaylar.push({ tip: 'secim', tur: d.tur, sekiller: d.karolar.map(k => k.sekil) });
     } else if (faz === 'titreme') {
@@ -105,7 +106,13 @@ const KaroMotor = (() => {
       const sira = { baslangic: 'secim', secim: 'titreme', titreme: 'dusus', dusus: 'itisme', itisme: 'geriGel', geriGel: 'secim' };
       fazaGec(d, sira[d.faz], olaylar, rnd);
     }
-    // Son 2 saniye: işaret belli olur
+    // İşaret belli olana kadar yerdeki işaretler her saniye karışır
+    if (d.faz === 'secim' && !d.gosterildi && (d.karisZaman -= dt) <= 0 && d.fazKalan > GOSTER_SN - 0.05) {
+      d.karisZaman = 1;
+      karistir(d, rnd);
+      olaylar.push({ tip: 'karistir', sekiller: d.karolar.map(k => k.sekil) });
+    }
+    // Son 3 saniye: işaret belli olur, yerdeki işaretler sabitlenir
     if (d.faz === 'secim' && !d.gosterildi && d.fazKalan <= GOSTER_SN) {
       d.gosterildi = true;
       olaylar.push({ tip: 'goster', hedef: d.hedef });
