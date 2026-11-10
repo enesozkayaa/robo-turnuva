@@ -2,8 +2,8 @@
 // Robo Turnuva - Son Sığınak: kurallar (ekran yok, sadece hesap)
 // Yuvarlak meydanın çevresinde, her tarafında 8 kabin (her birine 1 robot sığar).
 // Tur:
-//   bekle (10 sn)   → bütün kapılar kapalı, herkes meydanda
-//   giris (5 sn)    → bazı kapılar yeşil yanar ve açılır: içeri gir
+//   bekle (5 sn)    → bütün kapılar kapalı, herkes meydanda
+//   giris (3 sn)    → bazı kapılar yeşil yanar ve açılır: içeri gir
 //   kapanis         → kapılar kapanır
 //   saldiri         → uzay aracı dışarıda kalanları alır
 //   cikis (2 sn)    → kapılar açılır: hemen çık! (son anda tuzak uyarısı)
@@ -16,7 +16,7 @@
 const KapiMotor = (() => {
   const R = 8, KAPI_N = 8, W = 1.5, D = 1.4;          // meydan yarıçapı, kabin sayısı, kabin genişliği ve derinliği
   const ROBOT_R = 0.38, HIZ = 4.2;
-  const SURE = { baslangic: 3, bekle: 10, giris: 5, kapanis: 0.7, saldiri: 3.2, cikis: 2, tuzak: 0.7, kilit: 0.8 };
+  const SURE = { baslangic: 3, bekle: 5, giris: 3, kapanis: 0.7, saldiri: 3.2, cikis: 2, tuzak: 0.7, kilit: 0.8 };
   const UYARI_SN = 0.9;                               // çıkış süresinin son kaç saniyesinde tuzak uyarır
   const SIRA_4 = [6, 4, 3, 2, 1], SIRA_3 = [4, 3, 2, 1];
   const ACILAR = Array.from({ length: KAPI_N }, (_, i) => (-90 + i * 360 / KAPI_N) * Math.PI / 180);

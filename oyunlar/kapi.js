@@ -102,7 +102,7 @@
     ozet: 'Kapılar açılınca kabine kaç, uzay aracı gidince hemen çık! Rakibini tuzağa it.',
     kurallar: [
       'Meydanın <b>her tarafında</b> 8 kabin var. Her kabine <b>tek kişi</b> sığar.',
-      '<b>10 saniye</b> bütün kapılar kapalı. Sonra bazı kapılar <b>yeşil</b> yanıp açılır: <b>5 saniye</b> içinde en yakın açık kabine gir!',
+      '<b>5 saniye</b> bütün kapılar kapalı. Sonra bazı kapılar <b>yeşil</b> yanıp açılır: <b>3 saniye</b> içinde en yakın açık kabine gir!',
       'Kapılar kapanır, <b>uzay aracı</b> gelir ve dışarıda kalanları alır.',
       'Sonra kapılar açılır (sarı ışık): <b>2 saniye</b> içinde çık! Çıkmayanın kafasına tavandan <b>tuzak</b> iner.',
       'Çarparak <b>itebilirsin</b>: kapı açıkken rakibini kabine geri it, tuzak onun kafasına insin!',
