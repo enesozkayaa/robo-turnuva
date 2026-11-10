@@ -7,6 +7,7 @@
 (() => {
   const M = LazerMotor;
   const Y = 0.78;   // lazer yüksekliği
+  const UYARI_SN = 2; // düşecek halka görünmezliğin son kaç saniyesinde yanıp söner
 
   // ---------- Dokular ----------
   function panelDokusu() {
@@ -124,7 +125,7 @@
       'Tur başında herkesin yerine iyi bak: birazdan <b>5 saniye</b> herkes görünmez olacak. Sadece kendini görürsün.',
       'Bu 5 saniyede istediğin yere git ve lazerini çevir. Rakiplerin nereye kaçar, tahmin et!',
       'Süre bitince herkes görünür ve <b>lazer kime değerse o elenir</b>. Lazer ilk değdiği robotta durur.',
-      'Her 2 turda bir dış halka <b>düşer</b>. Hangisi olduğu önceden belli değil: görünmezliğin <b>son 1 saniyesinde</b> kırmızı yanıp söner. Hemen içeri kaçamazsan sen de düşersin!',
+      'Her 2 turda bir dış halka <b>düşer</b>. Hangisi olduğu önceden belli değil: görünmezliğin <b>son 2 saniyesinde</b> 4 kez kırmızı yanıp söner. Hemen içeri kaçamazsan sen de düşersin!',
       'Bilgisayar: <b>WASD / ok tuşları</b> yürü, <b>fare</b> nişan. Telefon: <b>sol</b> joystick yürü, <b>sağ</b> joystick nişan.',
       'Kafeste ayakta kalan son robot kazanır.',
     ],
@@ -176,7 +177,7 @@
         ISIN[o.id].goster(false); ISIN[o.id].kalin(1); ISIN[o.id].opaklik(1);
       });
       if (ben().canli) { ISIN[b.benId].goster(true); isinCiz(b.benId); }
-      uyariVar = false;   // halka sadece görünmezliğin son 1 saniyesinde yanıp söner
+      uyariVar = false;   // halka sadece görünmezliğin son 2 saniyesinde yanıp söner
       b.hud.bilgi(ben().canli ? '👀 Rakiplerin nerede, iyi bak! Birazdan herkes görünmez olacak.' : '💀 Elendin. Robotları izliyorsun…');
       b.hud.ipucu(ben().canli && d.tur === 1 ? (Kontrol.dokunmatik ? 'Sol: yürü · Sağ: nişan' : 'WASD / oklar: yürü · Fare: nişan') : '');
       b.hud.buyuk(`TUR ${d.tur}`, String(Math.ceil(zaman)));
@@ -193,8 +194,6 @@
         if (o.id === b.benId) { R[o.id].saydam(0.45); return; }
         if (izleyici) { R[o.id].saydam(0.45); ISIN[o.id].goster(true); isinCiz(o.id); return; }
         R[o.id].goster(false);
-        HAYALET[o.id].position.set(o.x, 0, o.z);
-        HAYALET[o.id].visible = true;
       });
       Ses.gizlen();
       b.hud.perde('gizli');
@@ -280,8 +279,9 @@
       if (durdu) return false;
       // Düşecek halka kırmızı yanıp söner
       arena.halkalar.forEach((h, i) => {
-        const yan = uyariVar && i === d.seviye && asama !== 'atis';
-        h.mal.emissiveIntensity = yan ? 0.35 + 0.35 * Math.sin(t * 9) : 0;
+        // Son 2 saniyede 4 kez yanıp söner (yarım saniyede bir yanar)
+        const yan = uyariVar && i === d.seviye && asama === 'gizli' && Math.floor((UYARI_SN - Math.max(0, zaman)) * 4) % 2 === 0;
+        h.mal.emissiveIntensity = yan ? 0.9 : 0;
         h.kenar.material.color.set(yan ? 0xff2040 : 0x2ee6ff);
       });
       if (asama !== 'hazir' && asama !== 'gizli') return;
@@ -319,8 +319,8 @@
       } else {
         b.hud.buyuk('👻 GÖRÜNMEZ', String(sn || ''), 'gizli');
         if (sn !== sonSaniye) { sonSaniye = sn; if (sn > 0) Ses.tik(); }
-        // Son 1 saniye: düşecek halka yanıp söner, botlar kaçmaya çalışır
-        if (!uyariVar && zaman <= 1 && M.dusecekMi(d)) {
+        // Son 2 saniye: düşecek halka yanıp söner, botlar kaçmaya çalışır
+        if (!uyariVar && zaman <= UYARI_SN && M.dusecekMi(d)) {
           uyariVar = true;
           Ses.uyari();
           b.hud.bilgi('⚠️ KIRMIZI HALKA DÜŞÜYOR! İçeri kaç!', true);

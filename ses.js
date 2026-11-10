@@ -58,6 +58,9 @@ const Ses = (() => {
   const patlama = () => { gurultu({ sure: 0.9, frekans: 1800, bitisFrekans: 80, seviye: 0.5, atak: 0.002 }); ton(110, { sure: 0.6, bitis: 35, tip: 'sine', seviye: 0.45 }); };
   const dusus = () => { gurultu({ sure: 2, frekans: 400, bitisFrekans: 60, seviye: 0.35, atak: 0.2 }); ton(70, { sure: 2, bitis: 30, tip: 'sawtooth', seviye: 0.12, atak: 0.2 }); };
   const uyari = () => { ton(520, { sure: 0.18, tip: 'square', seviye: 0.06 }); ton(390, { sure: 0.18, tip: 'square', seviye: 0.06, gecikme: 0.2 }); };
+  // Ağır çekim ateş: kalın, yavaşlayan "vuuum"
+  const agirAtes = () => { ton(320, { sure: 0.5, bitis: 90, tip: 'sawtooth', seviye: 0.05 }); gurultu({ sure: 0.45, frekans: 1200, bitisFrekans: 200, tip: 'bandpass', seviye: 0.08 }); };
+  const isabet = () => { ton(880, { sure: 0.12, bitis: 220, tip: 'square', seviye: 0.1 }); gurultu({ sure: 0.25, frekans: 2500, bitisFrekans: 300, seviye: 0.25 }); };
   const tik = () => ton(1500, { sure: 0.04, tip: 'square', seviye: 0.04 });
   const kazanma = () => [523, 659, 784, 1047, 784, 1047].forEach((f, i) => ton(f, { gecikme: i * 0.12, sure: 0.22, tip: 'triangle', seviye: 0.16 }));
   const kaybetme = () => [392, 330, 262, 196].forEach((f, i) => ton(f, { gecikme: i * 0.18, sure: 0.3, tip: 'triangle', seviye: 0.14 }));
@@ -77,5 +80,5 @@ const Ses = (() => {
     if (ana) ana.gain.value = v ? 0.8 : 0;
   }
 
-  return { bip, gizlen, belir, lazer, patlama, dusus, uyari, tik, kazanma, kaybetme, ortam, ac, motor, get acik() { return acik; } };
+  return { agirAtes, isabet, bip, gizlen, belir, lazer, patlama, dusus, uyari, tik, kazanma, kaybetme, ortam, ac, motor, get acik() { return acik; } };
 })();

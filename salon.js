@@ -48,6 +48,9 @@ const Salon = (() => {
     $('salonaBtn').addEventListener('click', salonaDon);
     menuCiz();
     vitrin();
+    // Kısayol: adres sonuna #oyna=kursun yazılırsa o oyun doğrudan açılır
+    const kisayol = location.hash.match(/oyna=(\w+)/);
+    if (kisayol) oyunBaslat(kisayol[1]);
   }
 
   function menuCiz() {
@@ -112,7 +115,7 @@ const Salon = (() => {
     if (kazandim) Ses.kazanma(); else Ses.kaybetme();
     const k = oyuncular.find(o => o.id === kazanan);
     $('sonucBaslik').textContent = kazandim ? '🏆 Kazandın!' : k ? `🏆 ${k.ad} kazandı` : '🤝 Berabere!';
-    $('sonucAciklama').textContent = k ? (kazandim ? 'Kafeste ayakta kalan son robot sensin!' : 'Bir dahakine sen kazanırsın!') : 'Son robotlar aynı anda elendi.';
+    $('sonucAciklama').textContent = k ? (kazandim ? 'Ayakta kalan son robot sensin!' : 'Bir dahakine sen kazanırsın!') : 'Son robotlar aynı anda elendi.';
     $('siralama').innerHTML = siralama.map(s => {
       const o = oyuncular.find(p => p.id === s.id);
       return `<li><span class="nokta" style="--renk:${o.renk}"></span><b>${o.ad}</b>${o.id === 0 ? ' (sen)' : ''} <span class="neden">${s.neden || ''}</span></li>`;
@@ -131,13 +134,13 @@ const Salon = (() => {
 
   // ---------- Ekran bilgileri (mini oyunlar kullanır) ----------
   const Hud = {
-    // liste: [{ id, ad, renk, canli, ben }]
+    // liste: [{ id, ad, renk, canli, ben, ek }]  (ek: adın yanında küçük yazı, ör. canlar)
     oyuncular(liste) {
       $('oyuncular').innerHTML = liste.map(o =>
-        `<div class="oyuncu ${o.ben ? 'ben' : ''} ${o.canli ? '' : 'elendi'}" style="--renk:${o.renk}"><span class="nokta"></span>${o.ad}</div>`).join('');
+        `<div class="oyuncu ${o.ben ? 'ben' : ''} ${o.canli ? '' : 'elendi'}" style="--renk:${o.renk}"><span class="nokta"></span>${o.ad}${o.ek ? ` <span class="ek">${o.ek}</span>` : ''}</div>`).join('');
     },
     // Büyük ortadaki yazı. sinif: '' | 'gizli' | 'ates'
-    buyuk(yazi, sayac = '', sinif = '') {
+    buyuk(yazi, sayac = '', sinif = '', zipla = true) {
       const el = $('buyuk');
       if (!yazi && !sayac) { el.hidden = true; return; }
       const yeni = $('buyukYazi').textContent !== yazi;
@@ -145,7 +148,7 @@ const Salon = (() => {
       el.className = sinif;
       $('buyukYazi').textContent = yazi;
       $('sayac').textContent = sayac;
-      if (yeni) { void el.offsetWidth; el.classList.add('zipla'); }
+      if (yeni && zipla) { void el.offsetWidth; el.classList.add('zipla'); }
     },
     bilgi(yazi, uyari = false) {
       $('bilgi').hidden = !yazi;
