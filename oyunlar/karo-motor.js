@@ -1,8 +1,9 @@
 // =============================================================
 // Robo Turnuva - Düşen Kareler: kurallar (ekran yok, sadece hesap)
 // 8x8 kare zemin, her karenin üstünde bir işaret: 0 kare, 1 yuvarlak, 2 üçgen.
-// Tur: duvarda bir işaret belirir (SECIM_SN) → o işaret olmayan kareler titrer (TITREME_SN)
-// → düşer, üstündeki oyuncular da düşer (elenir) → düşen karelerin yarısı geri gelir → işaretler karışır.
+// Tur: duvardaki işaret döner durur, son GOSTER_SN saniye kala belli olur → o işaret olmayan kareler titrer
+// → düşer, üstündeki oyuncular da düşer (elenir) → ITISME_SN saniye itişme → düşen karelerin yarısı
+// küçük gruplar halinde (1-3 kare) teker teker geri gelir → işaretler karışır.
 // Oyuncular birbirini itebilir. Köşeleri değen iki kare arasından çapraz geçilebilir;
 // kare olmayan yere basan düşer. Son kalan kazanır.
 // Sabit adımlı simülasyon: adim(d, dt, girdiler). Tarayıcıda ve Node'da (test) çalışır.
@@ -14,7 +15,9 @@ const KaroMotor = (() => {
   const ROBOT_R = 0.38;
   const DESTEK = 0.12;                  // merkez, bir karenin bu kadar dışına taşabilir (köşeden çapraz geçiş)
   const HIZ = 4.2;
-  const SURE = { secim: 10, titreme: 1.5, dusus: 1.1, geriGel: 1.4, baslangic: 3 };
+  const SURE = { secim: 10, titreme: 1.5, dusus: 1.1, itisme: 3, geriGel: 1, baslangic: 3 };
+  const GOSTER_SN = 2;            // işaret son kaç saniye kala belli olur
+  const GRUP_ARA = 0.45;          // geri gelen kare grupları arası süre
   const SEKILLER = ['kare', 'yuvarlak', 'ucgen'];
 
   const merkez = (i, j) => [-YARI + T * (i + 0.5), -YARI + T * (j + 0.5)];
@@ -67,7 +70,9 @@ const KaroMotor = (() => {
       karistir(d, rnd);
       d.karolar.forEach(k => { k.titre = false; k.dusuyor = false; });
       d.hedef = Math.floor(rnd() * 3);
-      olaylar.push({ tip: 'secim', tur: d.tur, hedef: d.hedef, sekiller: d.karolar.map(k => k.sekil) });
+      d.gosterildi = false;
+      // İşaret henüz belli değil: misafirlere de söylenmez (gösterilince 'goster' olayıyla gider)
+      olaylar.push({ tip: 'secim', tur: d.tur, sekiller: d.karolar.map(k => k.sekil) });
     } else if (faz === 'titreme') {
       d.karolar.forEach(k => { k.titre = k.var && k.sekil !== d.hedef; });
       olaylar.push({ tip: 'titreme' });
@@ -76,13 +81,17 @@ const KaroMotor = (() => {
       d.karolar.forEach((k, no) => { if (k.titre) { k.var = false; k.titre = false; k.dusuyor = true; dusen.push(no); } });
       d.sonDusen = dusen;
       olaylar.push({ tip: 'dusus', karolar: dusen });
+    } else if (faz === 'itisme') {
+      d.karolar.forEach(k => { k.dusuyor = false; });
+      olaylar.push({ tip: 'itisme' });
     } else if (faz === 'geriGel') {
-      // Düşenlerin yarısı geri gelir
+      // Düşenlerin yarısı geri gelir: hepsi birden değil, 1-3'lük karışık gruplar halinde sırayla
       const dusen = [...(d.sonDusen || [])].sort(() => rnd() - 0.5);
       const gelen = dusen.slice(0, Math.floor(dusen.length / 2));
-      gelen.forEach(no => { d.karolar[no].var = true; });
-      d.karolar.forEach(k => { k.dusuyor = false; });
-      olaylar.push({ tip: 'geriGel', karolar: gelen });
+      d.gelecek = [];
+      for (let k = 0; k < gelen.length;) { const n = 1 + Math.floor(rnd() * 3); d.gelecek.push(gelen.slice(k, k + n)); k += n; }
+      d.gelZaman = 0;
+      d.fazKalan = d.gelecek.length * GRUP_ARA + 0.6;
     }
   }
 
@@ -93,8 +102,23 @@ const KaroMotor = (() => {
     d.t += dt;
     d.fazKalan -= dt;
     if (d.fazKalan <= 0) {
-      const sira = { baslangic: 'secim', secim: 'titreme', titreme: 'dusus', dusus: 'geriGel', geriGel: 'secim' };
+      const sira = { baslangic: 'secim', secim: 'titreme', titreme: 'dusus', dusus: 'itisme', itisme: 'geriGel', geriGel: 'secim' };
       fazaGec(d, sira[d.faz], olaylar, rnd);
+    }
+    // Son 2 saniye: işaret belli olur
+    if (d.faz === 'secim' && !d.gosterildi && d.fazKalan <= GOSTER_SN) {
+      d.gosterildi = true;
+      olaylar.push({ tip: 'goster', hedef: d.hedef });
+    }
+    // Geri gelen kare grupları
+    if (d.faz === 'geriGel' && d.gelecek?.length) {
+      d.gelZaman -= dt;
+      if (d.gelZaman <= 0) {
+        const grup = d.gelecek.shift();
+        grup.forEach(no => { d.karolar[no].var = true; });
+        olaylar.push({ tip: 'geriGel', karolar: grup });
+        d.gelZaman = GRUP_ARA;
+      }
     }
     const hareketli = d.faz !== 'baslangic';
     const yasayan = canlilar(d);
@@ -193,15 +217,40 @@ const KaroMotor = (() => {
     const o = d.oyuncular.find(p => p.id === id);
     if (!o.canli || d.faz === 'baslangic') return { hx: 0, hz: 0 };
     hafiza.beceri ??= 0.7 + rnd() * 0.3;
-    if (hafiza.tur !== d.tur) {
-      // Yeni tur: duvara bakıp karar vermesi biraz sürer; bazen yanlış işarete yönelir
-      hafiza.tur = d.tur;
-      hafiza.bekle = d.t + 0.35 + rnd() * (2.2 - hafiza.beceri * 1.2);
-      hafiza.sekil = rnd() < 0.12 * (1.6 - hafiza.beceri) ? (d.hedef + 1 + Math.floor(rnd() * 2)) % 3 : d.hedef;
+    hafiza.saldirgan ??= rnd() < 0.6;
+    // İtişme arasında: saldırgan bot en yakın rakibe koşup iter
+    if (d.faz === 'itisme' && hafiza.saldirgan) {
+      const rakip = canlilar(d).filter(p => p.id !== id).sort((a, c) => Math.hypot(a.x - o.x, a.z - o.z) - Math.hypot(c.x - o.x, c.z - o.z))[0];
+      if (rakip) {
+        const dx = rakip.x - o.x, dz = rakip.z - o.z, L = Math.hypot(dx, dz);
+        if (L < 1.6 && L > 0.01) return { hx: dx / L, hz: dz / L };
+        const [ri, rj] = hucre(rakip.x, rakip.z), [ci, cj] = hucre(o.x, o.z);
+        if (ci >= 0 && cj >= 0 && ci < N && cj < N && (!hafiza.saldiriYol || d.t > hafiza.saldiriYenile)) {
+          hafiza.saldiriYenile = d.t + 0.5;
+          hafiza.saldiriYol = yol(d, [ci, cj], (i, j) => Math.max(Math.abs(i - ri), Math.abs(j - rj)) <= 1);
+          hafiza.saldiriAdim = 0;
+        }
+        const yl = hafiza.saldiriYol;
+        if (yl) {
+          let [ti, tj] = yl[Math.min(hafiza.saldiriAdim, yl.length - 1)];
+          let [tx, tz] = merkez(ti, tj);
+          if (Math.hypot(tx - o.x, tz - o.z) < 0.15 && hafiza.saldiriAdim < yl.length - 1) { hafiza.saldiriAdim++; [ti, tj] = yl[hafiza.saldiriAdim]; [tx, tz] = merkez(ti, tj); }
+          const ex = tx - o.x, ez = tz - o.z, M2 = Math.hypot(ex, ez);
+          if (M2 > 0.08) return { hx: ex / M2 * 0.85, hz: ez / M2 * 0.85 };
+        }
+      }
+      return { hx: 0, hz: 0 };
+    }
+    if (hafiza.tur !== d.tur) { hafiza.tur = d.tur; hafiza.karar = false; hafiza.yol = null; }
+    // İşaret belli olmadan bekler; belli olunca tepki verip koşar (bazen yanlış işarete)
+    if (d.faz === 'secim' && !d.gosterildi) return { hx: 0, hz: 0 };
+    if (!hafiza.karar) {
+      hafiza.karar = true;
+      hafiza.bekle = d.t + 0.12 + rnd() * (0.7 - hafiza.beceri * 0.4);
+      hafiza.sekil = rnd() < 0.1 * (1.6 - hafiza.beceri) ? (d.hedef + 1 + Math.floor(rnd() * 2)) % 3 : d.hedef;
       hafiza.yol = null; hafiza.yenile = 0;
     }
-    // Yanlış işarete gidiyorsa süre azalınca fark eder
-    if (hafiza.sekil !== d.hedef && d.faz === 'secim' && d.fazKalan < 2 + rnd() * 3) { hafiza.sekil = d.hedef; hafiza.yol = null; }
+    if (hafiza.sekil !== d.hedef && d.faz === 'secim' && d.fazKalan < 0.9) { hafiza.sekil = d.hedef; hafiza.yol = null; }
     if (d.t < hafiza.bekle) return { hx: 0, hz: 0 };
     const [ci, cj] = hucre(o.x, o.z);
     const uygun = (i, j) => { const k = d.karolar[karoNo(i, j)]; return k.var && (d.faz !== 'secim' || k.sekil === hafiza.sekil) && !k.titre; };
@@ -226,7 +275,7 @@ const KaroMotor = (() => {
     return { hx: dx / L * h, hz: dz / L * h };
   }
 
-  return { N, T, YARI, ROBOT_R, DESTEK, HIZ, SURE, SEKILLER, merkez, karoNo, hucre, destekVar, yeni, adim, botGirdi, canlilar };
+  return { N, T, YARI, ROBOT_R, DESTEK, HIZ, SURE, GOSTER_SN, SEKILLER, merkez, karoNo, hucre, destekVar, yeni, adim, botGirdi, canlilar };
 })();
 
 if (typeof module !== 'undefined') module.exports = KaroMotor;

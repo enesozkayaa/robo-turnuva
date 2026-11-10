@@ -18,8 +18,9 @@
   const SEKIL_EMOJI = ['🟩', '🟢', '🔺'];
 
   // İşaret çizimi (yeşil parlak)
-  function sekilCiz(g, s, cx, cy, r, renk = '#5dff6a', kalin = 10) {
+  function sekilCiz(g, s, cx, cy, r, renk = '#5dff6a', kalin = 10, aci = 0) {
     g.save();
+    if (aci) { g.translate(cx, cy); g.rotate(aci); g.translate(-cx, -cy); }
     g.strokeStyle = renk; g.lineWidth = kalin; g.lineJoin = 'round';
     g.shadowColor = renk; g.shadowBlur = kalin * 2.2;
     g.beginPath();
@@ -47,10 +48,10 @@
     const d = new THREE.CanvasTexture(c);
     d.colorSpace = THREE.SRGBColorSpace;
     const g = c.getContext('2d');
-    d.ciz = (s, yazi = '', sn = null) => {
+    d.ciz = (s, yazi = '', sn = null, aci = 0) => {
       g.fillStyle = '#0a0c1c'; g.fillRect(0, 0, 512, 288);
       g.strokeStyle = sn !== null && sn <= 3 ? '#ff3050' : '#2ee6ff'; g.lineWidth = 6; g.strokeRect(6, 6, 500, 276);
-      if (s !== null && s !== undefined) sekilCiz(g, s, 220, 150, 96, '#5dff6a', 16);
+      if (s !== null && s !== undefined) sekilCiz(g, s, 220, 150, 96, aci ? '#9fb4ff' : '#5dff6a', 16, aci);
       if (sn !== null) {
         g.fillStyle = sn <= 3 ? '#ff5070' : '#e6ecff'; g.font = '900 84px Orbitron, sans-serif'; g.textAlign = 'center';
         g.fillText(String(sn), 430, 178);
@@ -68,9 +69,9 @@
     ozet: 'Duvarda hangi işaret çıkarsa o kareye koş! Diğerleri titreyip düşer. İt, kaç, son kalan sen ol.',
     kurallar: [
       'Yerde 8×8 kare var; her karenin üstünde parlayan bir <b>kare</b>, <b>yuvarlak</b> ya da <b>üçgen</b> işareti var.',
-      'Her turda karşı duvarda bir işaret çıkar. <b>10 saniye</b> içinde o işaretli bir karenin üstüne git.',
+      'Her turda karşı duvardaki ekran döner, işaretler hızla değişir. <b>Son 2 saniye</b> kala doğru işaret belli olur: hemen o işaretli bir kareye koş!',
       'Süre bitince diğer kareler <b>titrer</b>, sonra <b>düşer</b>. Üstünde kalan da düşer ve elenir.',
-      'Düşen karelerin <b>yarısı geri gelir</b>. Her turda işaretler karışır.',
+      'Kareler düştükten sonra <b>3 saniye</b> itişme zamanı! Sonra düşenlerin <b>yarısı</b> küçük gruplar halinde sırayla geri gelir. Her turda işaretler karışır.',
       'Köşeleri birbirine değen iki kare arasından <b>çapraz geçebilirsin</b>; ama köşenin yanından, boşluktan geçersen düşersin!',
       'Koşarak çarpan rakibini <b>iter</b>. İtip boşluğa düşürebilirsin!',
       'Bilgisayar: <b>WASD / ok tuşları</b>. Telefon: <b>sol</b> joystick. Ayakta kalan son robot kazanır.',
@@ -127,21 +128,27 @@
     });
     const ben = d.oyuncular.find(o => o.id === b.benId);
 
-    let durdu = false, birikim = 0, bittiMi = false, sonSn = null;
+    let durdu = false, birikim = 0, bittiMi = false, sonSn = null, gizli = true, sonTik = null;
     function hudOyuncular() { b.hud.oyuncular(d.oyuncular.map(o => ({ ...o, ben: o.id === b.benId }))); }
     hudOyuncular();
-    b.hud.bilgi('Duvarda çıkan işaretin üstüne git! Diğer kareler düşecek.');
+    b.hud.bilgi('Duvardaki işaret son 2 saniyede belli olur. O an doğru kareye koş!');
     b.hud.ipucu(Kontrol.dokunmatik ? '' : 'WASD / oklar: yürü · Çarparak it!');
 
     // ---------- Olaylar (herkeste görsel) ----------
     function olayIsle(ol) {
       if (ol.tip === 'secim') {
         ol.sekiller.forEach((s, no) => karoSekil(no, s));
-        duvarD.ciz(ol.hedef, '', 10);
-        sonSn = 10;
-        duvarIsik.intensity = 5;
+        gizli = true; sonSn = null;
+        Ses.din();
+        b.hud.bilgi(`🎲 İşaret ${M.GOSTER_SN} saniye kala belli olacak. Hazır ol!`);
+      } else if (ol.tip === 'goster') {
+        gizli = false;
+        duvarD.ciz(ol.hedef, '', M.GOSTER_SN);
+        duvarIsik.intensity = 6;
         Ses.din(true);
-        b.hud.bilgi(`${SEKIL_EMOJI[ol.hedef]} ${SEKIL_AD[ol.hedef]} işaretli bir kareye git!`);
+        b.hud.bilgi(`${SEKIL_EMOJI[ol.hedef]} ${SEKIL_AD[ol.hedef]}! KOŞ!`, true);
+      } else if (ol.tip === 'itisme') {
+        b.hud.bilgi('💪 Kareler birazdan geri gelecek. İtişme zamanı!');
       } else if (ol.tip === 'titreme') {
         Ses.uyari();
         b.hud.bilgi('⚠️ Kareler titriyor!', true);
@@ -154,7 +161,7 @@
         duvarIsik.intensity = 0;
       } else if (ol.tip === 'geriGel') {
         ol.karolar.forEach(no => { const k = K[no]; k.durum = 'gel'; k.y = -10; k.m.rotation.set(0, 0, 0); k.m.visible = true; });
-        if (ol.karolar.length) { Ses.belir(); b.hud.bilgi(`🔁 Düşen karelerin yarısı geri geldi (${ol.karolar.length} kare).`); }
+        if (ol.karolar.length) Ses.belir();
       } else if (ol.tip === 'it') {
         Ses.isabet();
         if (ol.id === b.benId) Cekirdek.salla(0.15);
@@ -172,7 +179,8 @@
 
     // Misafir: evden gelen olayı kendi kopyasına işler
     function aynayaIsle(ol) {
-      if (ol.tip === 'secim') { d.tur = ol.tur; d.hedef = ol.hedef; ol.sekiller.forEach((s, no) => { d.karolar[no].sekil = s; d.karolar[no].titre = false; }); }
+      if (ol.tip === 'secim') { d.tur = ol.tur; d.gosterildi = false; ol.sekiller.forEach((s, no) => { d.karolar[no].sekil = s; d.karolar[no].titre = false; }); }
+      else if (ol.tip === 'goster') { d.hedef = ol.hedef; d.gosterildi = true; }
       else if (ol.tip === 'titreme') d.karolar.forEach(k => { k.titre = k.var && k.sekil !== d.hedef; });
       else if (ol.tip === 'dusus') ol.karolar.forEach(no => { d.karolar[no].var = false; d.karolar[no].titre = false; });
       else if (ol.tip === 'geriGel') ol.karolar.forEach(no => { d.karolar[no].var = true; });
@@ -273,7 +281,13 @@
         } else if (d.faz === 'secim') {
           // Duvarda işaret ve kalan saniye (üstteki yazı duvarı kapatmasın)
           const sn = Math.max(0, Math.ceil(d.fazKalan));
-          if (sn !== sonSn) { sonSn = sn; if (sn <= 3 && sn > 0) Ses.tik(); duvarD.ciz(d.hedef, '', sn); }
+          if (gizli) {
+            // İşaret belli değil: ekrandaki işaret döner ve hızla değişir (soluk renkte)
+            const s = Math.floor(t * 6) % 3;
+            duvarD.ciz(s, '', sn, t * 7);
+            sonSn = sn;
+            if (sn !== sonTik) { sonTik = sn; if (sn > M.GOSTER_SN) Ses.tik(); }
+          } else if (sn !== sonSn) { sonSn = sn; if (sn > 0) Ses.tik(); duvarD.ciz(d.hedef, '', sn); }
           b.hud.buyuk('');
         } else b.hud.buyuk('');
       }
