@@ -299,3 +299,8 @@ body.dokunmatik #bzDugmeler {
 .tablo td:nth-child(n+3), .tablo th:nth-child(n+3) { text-align: center; }
 .tablo td b { color: #ffd23b; }
 #tabloSifirBtn { margin-top: 8px; padding: 7px 12px; font-size: 13px; }
+
+/* Büyük yazı sol üstte (sahnenin ortası/üstü kapanmasın diye bazı oyunlarda) */
+#buyuk.yanda { left: 12px; right: auto; top: calc(58px + env(safe-area-inset-top)); text-align: left; }
+#buyuk.yanda #buyukYazi { font-size: clamp(15px, 2.6vw, 22px); }
+#buyuk.yanda #sayac { font-size: clamp(34px, 6vw, 56px); }

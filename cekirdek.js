@@ -100,8 +100,9 @@ const Cekirdek = (() => {
 
   // ---------- Kamera ----------
   // yaricap: ekrana sığması gereken alan; egim: 0 = yandan, 1.57 = tam tepeden
-  function kameraAyarla(yaricap, egim = 0.95) {
-    bakis.yaricap = yaricap; bakis.egim = egim;
+  // merkezZ: kameranın baktığı nokta (sahne ekranda yukarı/aşağı kaysın diye)
+  function kameraAyarla(yaricap, egim = 0.95, merkezZ = 0.6) {
+    bakis.yaricap = yaricap; bakis.egim = egim; bakis.merkez.z = merkezZ;
     boyutla();
   }
   function boyutla() {
