@@ -12,7 +12,7 @@ const Salon = (() => {
   const BOT_ADLARI = ['Bipbop', 'Tıkır', 'Vızır', 'Cızbız', 'Pırpır', 'Zıpzıp', 'Dıtdıt', 'Fırfır'];
   const ANAHTAR = 'roboTurnuva.ayar';
   const oyunlar = [];
-  const EN_COK_BOT = 4;
+  const EN_COK_BOT = 3;   // sen + 3 robot = en fazla 4 kişi
   let ayar = { ad: '', bot: 3 };
   try { Object.assign(ayar, JSON.parse(localStorage.getItem(ANAHTAR) || '{}')); } catch (e) { /* varsayılan */ }
   ayar.bot = Math.min(EN_COK_BOT, Math.max(1, +ayar.bot || 3));
