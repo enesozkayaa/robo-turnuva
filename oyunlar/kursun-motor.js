@@ -52,6 +52,14 @@ const KursunMotor = (() => {
     });
   }
 
+  // Online'da misafirin kendi robotunu kendi cihazında yürütmesi için (ev ile aynı kural)
+  function hareketEt(d, o, hx, hz, dt) {
+    const L = Math.hypot(hx, hz);
+    if (L > 1) { hx /= L; hz /= L; }
+    o.x += hx * HIZ * dt; o.z += hz * HIZ * dt;
+    yerlestir(d, o);
+  }
+
   // girdiler: { id: { hx, hz, a } }  hx/hz: yürüme yönü (uzunluk ≤ 1), a: nişan açısı
   function adim(d, dt, girdiler = {}) {
     const olaylar = [];
@@ -68,7 +76,9 @@ const KursunMotor = (() => {
       if (L > 1) { hx /= L; hz /= L; }
       if (!basladi) hx = hz = 0;
       const ex = o.x, ez = o.z;
-      o.x += hx * HIZ * dt; o.z += hz * HIZ * dt;
+      // Online: oyuncu kendi yerini kendi cihazında yürütür ve gönderir (x, z); yoksa yön (hx, hz) ile yürür
+      if (basladi && typeof g.x === 'number' && typeof g.z === 'number' && isFinite(g.x) && isFinite(g.z)) { o.x = g.x; o.z = g.z; }
+      else { o.x += hx * HIZ * dt; o.z += hz * HIZ * dt; }
       yerlestir(d, o);
       o.vx = (o.x - ex) / dt; o.vz = (o.z - ez) / dt;
       if (o.koruma > 0) o.koruma = Math.max(0, o.koruma - dt);
@@ -104,7 +114,7 @@ const KursunMotor = (() => {
       // Namlu kolonun içindeyse kurşun hemen söner
       if (d.kolonlar.some(({ x: kx, z: kz }) => Math.hypot(k.x - kx, k.z - kz) < KOLON_R)) { olaylar.push({ tip: 'carpti', x: k.x, z: k.z, sahip: o.id, k: k.k }); return; }
       d.kursunlar.push(k);
-      olaylar.push({ tip: 'ates', id: o.id, k: k.k });
+      olaylar.push({ tip: 'ates', id: o.id, k: k.k, kr: { ...k } });
     });
 
     // Kurşunlar ilerler (hepsi şu anki hıza uyar: zaman herkes için hızlanır)
@@ -191,7 +201,7 @@ const KursunMotor = (() => {
     return { hx: dx / L * 0.8, hz: dz / L * 0.8, a };
   }
 
-  return { ODA, KOLON_R, KOLONLAR, KOLON_SN, KOLON_UYARI, ROBOT_R, KURSUN_R, HIZ, CAN, BASLANGIC, kursunHizi, atesAraligi, hizKati, hizBasamagi, sonBasamakMi, yeni, adim, botGirdi, canlilar };
+  return { ODA, KOLON_R, KOLONLAR, KOLON_SN, KOLON_UYARI, ROBOT_R, KURSUN_R, HIZ, CAN, BASLANGIC, kursunHizi, atesAraligi, hizKati, hizBasamagi, sonBasamakMi, yeni, adim, botGirdi, canlilar, hareketEt };
 })();
 
 if (typeof module !== 'undefined') module.exports = KursunMotor;

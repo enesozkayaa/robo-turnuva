@@ -26,6 +26,7 @@
   <div id="buyuk" hidden><div id="buyukYazi"></div><div id="sayac"></div></div>
   <div id="bilgi" hidden></div>
   <div id="ipucu" hidden></div>
+  <div id="odaBilgisi" hidden></div>
   <button id="menuBtn" class="koseBtn" title="Oyun salonuna dön" hidden>🏠</button>
   <button id="sesBtn" class="koseBtn" title="Sesi aç/kapat">🔊</button>
 
@@ -41,14 +42,27 @@
           <input id="adim" class="giris" maxlength="10" placeholder="Adın" autocomplete="off">
         </label>
         <div class="ayar">
-          <span>👾 Rakip robot sayısı</span>
+          <span id="botBaslik">👾 Rakip robot sayısı</span>
           <div id="botSayisi" class="secenekler"></div>
         </div>
       </div>
 
+      <h3>🌐 Arkadaşlarla online</h3>
+      <div id="odaGiris" class="onlineSatir">
+        <button id="odaAcBtn">Oda aç</button>
+        <input id="odaKodu" class="giris" maxlength="5" placeholder="Oda kodu" autocomplete="off" autocapitalize="characters">
+        <button id="katilBtn" class="ikinci">Katıl</button>
+      </div>
+      <div id="odaKutu" hidden>
+        <div class="odaKod">Oda kodu: <b id="odaKodYazi"></b></div>
+        <ul id="odaKisiler"></ul>
+        <p id="odaNot" class="not"></p>
+        <button id="odadanCikBtn" class="ikinci">❌ Odadan çık</button>
+      </div>
+      <p id="onlineDurum" class="not"></p>
+
       <h3>🎮 Mini oyunlar</h3>
       <div id="oyunListesi"></div>
-      <p class="not">🌐 Arkadaşlarla online oynama yakında geliyor.</p>
       <p id="surumNotu" class="surum"></p>
     </div>
   </section>
@@ -56,7 +70,7 @@
   <section id="cikisEkrani" class="ekran" hidden>
     <div class="kart">
       <h2>🏠 Oyun salonuna dön</h2>
-      <p>Bu oyun bitecek. Emin misin?</p>
+      <p id="cikisMetni">Bu oyun bitecek. Emin misin?</p>
       <div class="ikiDugme">
         <button id="cikisHayir" class="ikinci">Hayır, devam</button>
         <button id="cikisEvet">Evet, çık</button>
@@ -69,6 +83,7 @@
       <h2 id="sonucBaslik"></h2>
       <p id="sonucAciklama"></p>
       <ol id="siralama"></ol>
+      <p id="sonucNot" class="not" hidden>⏳ Oda sahibi yeni oyunu seçecek.</p>
       <div class="ikiDugme">
         <button id="salonaBtn" class="ikinci">🏠 Salon</button>
         <button id="tekrarBtn">🔁 Tekrar oyna</button>
@@ -80,12 +95,15 @@
   <script src="ses.js"></script>
   <script src="cekirdek.js"></script>
   <script src="kontrol.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script src="ag.js"></script>
   <script src="salon.js"></script>
   <!-- Mini oyunlar: yeni oyun = oyunlar/ klasörüne dosya + buraya bir satır -->
   <script src="oyunlar/lazer-motor.js"></script>
   <script src="oyunlar/lazer.js"></script>
   <script src="oyunlar/kursun-motor.js"></script>
   <script src="oyunlar/kursun.js"></script>
+  <script src="oyunlar/zaman.js"></script>
   <script>Salon.baslat();</script>
   <script>
     // Servis çalışanı: telefona kurulum ve otomatik güncelleme (yeni sürüm gelince salondayken sayfa yenilenir)

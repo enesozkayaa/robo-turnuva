@@ -1,13 +1,22 @@
 // =============================================================
 // Robo Turnuva - oyun salonu
-// Mini oyunların listesi, oyuncular (sen + robot rakipler), ekran bilgileri (Hud)
-// ve oyun sonu ekranı. Yeni mini oyun eklemek için:
-//   Salon.oyunEkle({ id, ad, ikon, ozet, kurallar: [...], baslat(b) { ...; return { durdur() {} } } })
-// b = { oyuncular, benId, hud, bitti({ kazanan, siralama: [{ id, neden }] }) }
+// Mini oyunların listesi, oyuncular (sen + robotlar, online'da arkadaşlar), ekran bilgileri (Hud),
+// online oda (ag.js) ve oyun sonu ekranı.
+//
+// Yeni mini oyun eklemek için:
+//   Salon.oyunEkle({ id, ad, ikon, ozet, kurallar: [...], baslat(b) { ...; return { durdur(), koptu?(id) } } })
+// b = { oyuncular: [{ id, ad, renk, bot }], benId, hud, kanal, bitti({ kazanan, siralama: [{ id, neden }], aciklama? }) }
+//
+// kanal: her mini oyun hem tek başına hem online aynı kodla çalışsın diye.
+//   kanal.evMi      → oyunun kurallarını bu cihaz mı yürütüyor? (tek başına ya da oda sahibi)
+//   kanal.yayinla(m) → (sadece ev) mesajı herkese gönderir, kendisi de alır
+//   kanal.dinle(fn)  → yayınlanan mesajları al (herkes)
+//   kanal.evaGonder(m) → hamleni oyunu yürütene gönder (ev kendine gönderir)
+//   kanal.evDinle(fn(m, id)) → (ev) oyuncuların gönderdiği hamleler
 // =============================================================
 
 const Salon = (() => {
-  const SURUM = '1.0';
+  const SURUM = '2.0';
   const RENKLER = ['#2ee6ff', '#ff3b8d', '#ffd23b', '#7dff4a', '#b46bff', '#ff8a2a', '#ff6bf0', '#f2f5ff'];
   const BOT_ADLARI = ['Bipbop', 'Tıkır', 'Vızır', 'Cızbız', 'Pırpır', 'Zıpzıp', 'Dıtdıt', 'Fırfır'];
   const ANAHTAR = 'roboTurnuva.ayar';
@@ -16,11 +25,12 @@ const Salon = (() => {
   let ayar = { ad: '', bot: 3 };
   try { Object.assign(ayar, JSON.parse(localStorage.getItem(ANAHTAR) || '{}')); } catch (e) { /* varsayılan */ }
   ayar.bot = Math.min(EN_COK_BOT, Math.max(1, +ayar.bot || 3));
-  let calisan = null, sonOyun = null;
+  let calisan = null, kanal = null, sonOyun = null, lobi = null;
   const $ = id => document.getElementById(id);
 
   function oyunEkle(o) { oyunlar.push(o); }
   function kaydet() { try { localStorage.setItem(ANAHTAR, JSON.stringify(ayar)); } catch (e) { /* */ } }
+  const online = () => Ag.mod !== 'yerel';
 
   function baslat() {
     Cekirdek.baslat($('sahne'));
@@ -29,11 +39,11 @@ const Salon = (() => {
     $('surumNotu').textContent = `Sürüm ${SURUM}`;
     $('adim').value = ayar.ad;
     $('adim').addEventListener('input', e => { ayar.ad = e.target.value.trim(); kaydet(); });
-    $('botSayisi').innerHTML = Array.from({ length: EN_COK_BOT }, (_, i) => i + 1).map(n => `<button data-n="${n}">${n}</button>`).join('');
     $('botSayisi').addEventListener('click', e => {
-      const n = +e.target.dataset.n;
-      if (!n) return;
-      ayar.bot = n; kaydet(); menuCiz();
+      const n = e.target.dataset.n;
+      if (n === undefined) return;
+      if (Ag.mod === 'ev') Ag.botAyarla(+n);
+      else { ayar.bot = +n; kaydet(); menuCiz(); }
     });
     $('oyunListesi').addEventListener('click', e => {
       const b = e.target.closest('[data-oyna]');
@@ -41,28 +51,104 @@ const Salon = (() => {
     });
     $('sesBtn').addEventListener('click', () => { Ses.ac(!Ses.acik); $('sesBtn').textContent = Ses.acik ? '🔊' : '🔇'; });
     $('sesBtn').textContent = Ses.acik ? '🔊' : '🔇';
-    $('menuBtn').addEventListener('click', () => { $('cikisEkrani').hidden = false; });
+    $('menuBtn').addEventListener('click', () => {
+      $('cikisMetni').textContent = Ag.mod === 'misafir' ? 'Odadan çıkacaksın. Emin misin?' : Ag.mod === 'ev' ? 'Oyun herkes için bitecek ve odaya dönülecek. Emin misin?' : 'Bu oyun bitecek. Emin misin?';
+      $('cikisEkrani').hidden = false;
+    });
     $('cikisHayir').addEventListener('click', () => { $('cikisEkrani').hidden = true; });
-    $('cikisEvet').addEventListener('click', () => { $('cikisEkrani').hidden = true; salonaDon(); });
+    $('cikisEvet').addEventListener('click', () => {
+      $('cikisEkrani').hidden = true;
+      if (Ag.mod === 'misafir') { Ag.kapat(); salonaDon(); onlineCiz(); }
+      else salonaDonHerkes();
+    });
     $('tekrarBtn').addEventListener('click', () => oyunBaslat(sonOyun));
-    $('salonaBtn').addEventListener('click', salonaDon);
+    $('salonaBtn').addEventListener('click', () => (Ag.mod === 'misafir' ? salonaDon() : salonaDonHerkes()));
+
+    // Online
+    $('odaAcBtn').addEventListener('click', () => { const ad = adAl(); if (ad) { Ses.motor(); Ag.odaKur(ad); } });
+    $('katilBtn').addEventListener('click', () => {
+      const ad = adAl();
+      if (!ad) return;
+      const kod = $('odaKodu').value.trim();
+      if (kod.length < 4) { sars('odaKodu'); return; }
+      Ses.motor();
+      Ag.katil(ad, kod);
+    });
+    $('odaKodu').addEventListener('keydown', e => { if (e.key === 'Enter') $('katilBtn').click(); });
+    $('odadanCikBtn').addEventListener('click', () => { Ag.kapat(); lobi = null; onlineCiz(); menuCiz(); });
+    Ag.olay = agOlayi;
+
     menuCiz();
+    onlineCiz();
     vitrin();
     // Kısayol: adres sonuna #oyna=kursun yazılırsa o oyun doğrudan açılır
     const kisayol = location.hash.match(/oyna=(\w+)/);
     if (kisayol) oyunBaslat(kisayol[1]);
   }
 
+  function sars(id) { $(id).classList.add('eksik'); setTimeout(() => $(id).classList.remove('eksik'), 600); $(id).focus(); }
+  function adAl() {
+    const ad = $('adim').value.trim().slice(0, 10);
+    if (!ad) { sars('adim'); $('adim').placeholder = 'Önce adını yaz 👈'; return null; }
+    return ad;
+  }
+
+  // ---------- Menü ----------
   function menuCiz() {
-    [...$('botSayisi').children].forEach(b => b.classList.toggle('secili', +b.dataset.n === ayar.bot));
+    const ev = Ag.mod === 'ev', misafir = Ag.mod === 'misafir';
+    // Robot sayısı: tek başına 1-3 rakip; online'da boş yerler (0 - kalan)
+    const enCok = online() ? Ag.EN_COK - (lobi?.oyuncular.length || 1) : EN_COK_BOT;
+    const enAz = online() ? 0 : 1;
+    const secili = online() ? (lobi?.bot ?? 0) : ayar.bot;
+    $('botBaslik').textContent = online() ? '🤖 Boş yerlere robot' : '👾 Rakip robot sayısı';
+    $('botSayisi').innerHTML = Array.from({ length: enCok - enAz + 1 }, (_, i) => i + enAz)
+      .map(n => `<button data-n="${n}" class="${n === secili ? 'secili' : ''}" ${misafir ? 'disabled' : ''}>${n}</button>`).join('');
+    const oyunda = misafir && lobi?.oyunda;
     $('oyunListesi').innerHTML = oyunlar.map(o => `
       <div class="miniOyun">
         <div class="ikon">${o.ikon}</div>
         <div><b>${o.ad}</b><p>${o.ozet}</p></div>
-        <button data-oyna="${o.id}">▶ Oyna</button>
+        ${misafir ? `<span class="bekle">${oyunda ? 'Oynanıyor…' : 'Oda sahibi seçer'}</span>` : `<button data-oyna="${o.id}">▶ Oyna</button>`}
         <details><summary>Nasıl oynanır?</summary><ol>${o.kurallar.map(k => `<li>${k}</li>`).join('')}</ol></details>
       </div>`).join('') + `
       <div class="miniOyun yakinda"><div class="ikon">❔</div><div><b>Yeni mini oyunlar</b><p>Yakında bu salona eklenecek.</p></div><span></span></div>`;
+    void ev;
+  }
+
+  function onlineCiz() {
+    const odada = online() && lobi;
+    $('odaGiris').hidden = !!odada;
+    $('odaKutu').hidden = !odada;
+    if (!odada) return;
+    $('odaKodYazi').textContent = lobi.kod || Ag.kod;
+    $('odaKisiler').innerHTML = lobi.oyuncular.map((o, i) =>
+      `<li><span class="nokta" style="--renk:${RENKLER[i]}"></span>${o.ad}${i === 0 ? ' 👑' : ''}</li>`).join('') +
+      Array.from({ length: lobi.bot }, (_, i) => `<li class="botSatir"><span class="nokta" style="--renk:${RENKLER[lobi.oyuncular.length + i]}"></span>🤖 Robot</li>`).join('');
+    $('odaNot').textContent = Ag.mod === 'ev'
+      ? `Kodu arkadaşlarına söyle. Herkes gelince aşağıdan bir oyun seç (en fazla ${Ag.EN_COK} kişi).`
+      : lobi.oyunda ? '⏳ Odada oyun oynanıyor, bitince katılacaksın.' : '⏳ Oda sahibinin oyun seçmesi bekleniyor…';
+  }
+
+  function agOlayi(tip, veri) {
+    if (tip === 'durum') { $('onlineDurum').textContent = veri; return; }
+    if (tip === 'hata') { $('onlineDurum').textContent = '❌ ' + veri; lobi = null; onlineCiz(); menuCiz(); return; }
+    if (tip === 'lobi') { lobi = veri; $('onlineDurum').textContent = ''; onlineCiz(); menuCiz(); return; }
+    if (tip === 'kapandi') {
+      lobi = null;
+      if (calisan) salonaDon();
+      $('onlineDurum').textContent = '📴 ' + veri;
+      onlineCiz(); menuCiz();
+      return;
+    }
+    if (tip === 'basla') { oyunuAc(veri.oyun, veri.oyuncular, veri.benId, 'misafir'); return; }
+    if (tip === 'salon') { if (calisan || !$('sonuc').hidden) salonaDon(); return; }
+    if (tip === 'mesaj') { kanal?._gelen(veri); return; }
+    if (tip === 'evMesaj') { kanal?._evGelen(veri.v, veri.id); return; }
+    if (tip === 'koptu') {
+      const o = calisanOyuncular?.find(p => p.id === veri);
+      if (o) { Hud.bilgi(`📴 ${o.ad} bağlantısı koptu, yerine robot oynuyor.`); o.bot = true; }
+      calisan?.koptu?.(veri);
+    }
   }
 
   // Salondayken arkada robotlar boşlukta süzülsün
@@ -85,51 +171,110 @@ const Salon = (() => {
     });
   }
 
+  // ---------- Oyun başlatma ----------
   function oyunBaslat(id) {
+    if (Ag.mod === 'misafir') return;
     const oyun = oyunlar.find(o => o.id === id);
     if (!oyun) return;
     Ses.motor();
-    if (!ayar.ad) { $('adim').focus(); $('adim').classList.add('eksik'); setTimeout(() => $('adim').classList.remove('eksik'), 600); }
+    const adlar = [...BOT_ADLARI].sort(() => Math.random() - 0.5);
+    let oyuncular;
+    if (Ag.mod === 'ev') {
+      oyuncular = Ag.insanlar().map((p, i) => ({ id: i, ad: p.ad, renk: RENKLER[i], bot: false }));
+      for (let i = 0; i < Ag.bot && oyuncular.length < Ag.EN_COK; i++) {
+        const n = oyuncular.length;
+        oyuncular.push({ id: n, ad: adlar[i], renk: RENKLER[n], bot: true });
+      }
+      if (oyuncular.length < 2) { $('onlineDurum').textContent = '❗ Oynamak için en az 2 kişi lazım: arkadaşını bekle ya da robot ekle.'; return; }
+      Ag.oyunuBaslat(id, oyuncular);
+    } else {
+      if (!ayar.ad) sars('adim');
+      oyuncular = [{ id: 0, ad: ayar.ad || 'Sen', renk: RENKLER[0], bot: false }];
+      for (let i = 0; i < ayar.bot; i++) oyuncular.push({ id: i + 1, ad: adlar[i], renk: RENKLER[i + 1], bot: true });
+    }
+    oyunuAc(id, oyuncular, 0, Ag.mod);
+  }
+
+  let calisanOyuncular = null;
+  function oyunuAc(id, oyuncular, benId, mod) {
+    const oyun = oyunlar.find(o => o.id === id);
+    if (!oyun) return;
     durdur();
     vitrinRobotlari.forEach(r => r.sil()); vitrinRobotlari = [];
     sonOyun = id;
-    const adlar = [...BOT_ADLARI].sort(() => Math.random() - 0.5);
-    const oyuncular = [{ id: 0, ad: ayar.ad || 'Sen', renk: RENKLER[0], bot: false }];
-    for (let i = 0; i < ayar.bot; i++) oyuncular.push({ id: i + 1, ad: adlar[i], renk: RENKLER[i + 1], bot: true });
+    calisanOyuncular = oyuncular;
     ['salon', 'sonuc', 'cikisEkrani'].forEach(e => { $(e).hidden = true; });
     ['oyuncular', 'menuBtn'].forEach(e => { $(e).hidden = false; });
+    $('odaBilgisi').hidden = mod === 'yerel';
+    $('odaBilgisi').innerHTML = `🌐 Oda <b>${Ag.kod}</b>`;
     Ses.ortam(true);
     Kontrol.ac(true);
-    calisan = oyun.baslat({ oyuncular, benId: 0, hud: Hud, bitti: sonuc => oyunBitti(oyun, oyuncular, sonuc) });
+    kanal = kanalYap(mod, benId);
+    calisan = oyun.baslat({ oyuncular, benId, hud: Hud, kanal, bitti: sonuc => oyunBitti(oyuncular, benId, sonuc) });
+  }
+
+  function kanalYap(mod, benId) {
+    const dinleyen = [], evDinleyen = [];
+    const evMi = mod !== 'misafir';
+    let acik = true;
+    return {
+      evMi, online: mod !== 'yerel',
+      yayinla(m) {
+        if (!evMi || !acik) return;
+        if (mod === 'ev') Ag.herkese(m);
+        queueMicrotask(() => { if (acik) dinleyen.forEach(f => f(m)); });
+      },
+      evaGonder(m) {
+        if (!acik) return;
+        if (evMi) queueMicrotask(() => { if (acik) evDinleyen.forEach(f => f(m, benId)); });
+        else Ag.evaGonder(m);
+      },
+      dinle(f) { dinleyen.push(f); },
+      evDinle(f) { evDinleyen.push(f); },
+      _gelen(m) { if (acik) dinleyen.forEach(f => f(m)); },
+      _evGelen(m, id) { if (acik && evMi) evDinleyen.forEach(f => f(m, id)); },
+      _kapat() { acik = false; },
+    };
   }
 
   function durdur() {
     if (calisan) { calisan.durdur(); calisan = null; }
+    kanal?._kapat(); kanal = null;
     Kontrol.ac(false);
     Hud.temizle();
   }
 
-  function oyunBitti(oyun, oyuncular, { kazanan, siralama }) {
+  function oyunBitti(oyuncular, benId, { kazanan, siralama, aciklama }) {
     Kontrol.ac(false);
-    const kazandim = kazanan === 0;
+    const kazandim = kazanan === benId;
     if (kazandim) Ses.kazanma(); else Ses.kaybetme();
     const k = oyuncular.find(o => o.id === kazanan);
     $('sonucBaslik').textContent = kazandim ? '🏆 Kazandın!' : k ? `🏆 ${k.ad} kazandı` : '🤝 Berabere!';
-    $('sonucAciklama').textContent = k ? (kazandim ? 'Ayakta kalan son robot sensin!' : 'Bir dahakine sen kazanırsın!') : 'Son robotlar aynı anda elendi.';
+    $('sonucAciklama').textContent = aciklama || (k ? (kazandim ? 'Ayakta kalan son robot sensin!' : 'Bir dahakine sen kazanırsın!') : 'Son robotlar aynı anda elendi.');
     $('siralama').innerHTML = siralama.map(s => {
       const o = oyuncular.find(p => p.id === s.id);
-      return `<li><span class="nokta" style="--renk:${o.renk}"></span><b>${o.ad}</b>${o.id === 0 ? ' (sen)' : ''} <span class="neden">${s.neden || ''}</span></li>`;
+      return `<li><span class="nokta" style="--renk:${o.renk}"></span><b>${o.ad}</b>${o.id === benId ? ' (sen)' : ''} <span class="neden">${s.neden || ''}</span></li>`;
     }).join('');
+    const misafir = Ag.mod === 'misafir';
+    $('tekrarBtn').hidden = misafir;
+    $('salonaBtn').textContent = misafir ? '🏠 Odaya dön' : online() ? '🏠 Odaya dön' : '🏠 Salon';
+    $('sonucNot').hidden = !misafir;
     setTimeout(() => { if (calisan) $('sonuc').hidden = false; }, 1400);
   }
 
+  // Oda sahibi ya da tek başına: oyunu bitir, (online ise herkesi) salona döndür
+  function salonaDonHerkes() {
+    if (Ag.mod === 'ev') Ag.salonaDon();
+    salonaDon();
+  }
   function salonaDon() {
     durdur();
     Ses.ortam(false);
-    ['oyuncular', 'menuBtn', 'sonuc'].forEach(e => { $(e).hidden = true; });
+    ['oyuncular', 'menuBtn', 'sonuc', 'odaBilgisi', 'cikisEkrani'].forEach(e => { $(e).hidden = true; });
     $('salon').hidden = false;
     Cekirdek.kameraAyarla(10, 1.0);
     vitrin();
+    onlineCiz(); menuCiz();
   }
 
   // ---------- Ekran bilgileri (mini oyunlar kullanır) ----------
@@ -137,7 +282,7 @@ const Salon = (() => {
     // liste: [{ id, ad, renk, canli, ben, ek }]  (ek: adın yanında küçük yazı, ör. canlar)
     oyuncular(liste) {
       $('oyuncular').innerHTML = liste.map(o =>
-        `<div class="oyuncu ${o.ben ? 'ben' : ''} ${o.canli ? '' : 'elendi'}" style="--renk:${o.renk}"><span class="nokta"></span>${o.ad}${o.ek ? ` <span class="ek">${o.ek}</span>` : ''}</div>`).join('');
+        `<div class="oyuncu ${o.ben ? 'ben' : ''} ${o.canli === false ? 'elendi' : ''}" style="--renk:${o.renk}"><span class="nokta"></span>${o.ad}${o.ek ? ` <span class="ek">${o.ek}</span>` : ''}</div>`).join('');
     },
     // Büyük ortadaki yazı. sinif: '' | 'gizli' | 'ates'
     buyuk(yazi, sayac = '', sinif = '', zipla = true) {
@@ -165,5 +310,5 @@ const Salon = (() => {
     temizle() { Hud.buyuk(''); Hud.bilgi(''); Hud.ipucu(''); Hud.perde(''); $('oyuncular').innerHTML = ''; },
   };
 
-  return { baslat, oyunEkle, Hud, RENKLER, get oyunda() { return !!calisan; } };
+  return { baslat, oyunEkle, Hud, RENKLER, get oyunda() { return !!calisan || Ag.mod !== 'yerel'; } };
 })();

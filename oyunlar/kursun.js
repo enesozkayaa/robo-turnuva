@@ -120,7 +120,15 @@
     baslat,
   });
 
+  // Online: kurallar odayı açanda (kanal.evMi) yürür (60 kare/sn). Ev saniyede 20 kez herkese
+  // robotların yerini, canlarını ve olayları (yeni kurşun, vuruş, kolon) yollar. Misafir kendi robotunu
+  // kendi cihazında yürütür (gecikme hissedilmesin) ve yerini eve gönderir; kurşunları kendisi ilerletir.
+  // Mesajlar: ev → herkes { t: 'd', zt, o: [[id, x, z, a, can, koruma, canli, olumSirasi]], ol: [olaylar] }
+  //           oyuncu → ev { t: 'g', x, z, a }
+  const YAYIN_SN = 0.05;
+
   function baslat(b) {
+    const { kanal } = b;
     const d = M.yeni(b.oyuncular.map(o => ({ id: o.id, ad: o.ad, renk: o.renk, bot: o.bot })));
     const grup = new THREE.Group();
     Cekirdek.sahne.add(grup);
@@ -133,6 +141,7 @@
       grup.add(r.grup);
       R[o.id] = r;
       hafiza[o.id] = {};
+      o.hedefX = o.x; o.hedefZ = o.z; o.hedefA = o.a;
     });
     const renk = id => d.oyuncular.find(o => o.id === id).renk;
     const KURSUN = new Map();   // kurşun no → nesne
@@ -149,6 +158,7 @@
     b.hud.bilgi('Kurşunlar ağır çekimde gelir, atışlar gittikçe sıklaşır. Kaç ve saklan!');
     b.hud.ipucu(Kontrol.dokunmatik ? '' : 'WASD / oklar: yürü · Fare: nişan');
 
+    // Ekrandaki etkiler (herkeste aynı)
     function olayIsle(ol) {
       if (ol.tip === 'ates') {
         if (ol.id === b.benId || Math.random() < 0.5) Ses.agirAtes();
@@ -187,7 +197,18 @@
       }
     }
 
+    // Misafir: evden gelen olayı kendi kopyasına işler (kurşun ekle/sil, can, kolon)
+    function aynayaIsle(ol) {
+      if (ol.tip === 'ates' && ol.kr) d.kursunlar.push({ ...ol.kr });
+      else if (ol.tip === 'carpti' || ol.tip === 'vurdu') d.kursunlar = d.kursunlar.filter(k => k.k !== ol.k);
+      if (ol.tip === 'vurdu') { const o = d.oyuncular.find(p => p.id === ol.id); o.can = ol.can; o.koruma = M.KORUMA ?? 1.2; }
+      else if (ol.tip === 'elendi') { const o = d.oyuncular.find(p => p.id === ol.id); o.canli = false; o.can = 0; }
+      else if (ol.tip === 'kolonGitti') d.kolonlar = d.kolonlar.filter(k => k.i !== ol.i);
+      else if (ol.tip === 'bitti') { d.bitti = true; d.kazanan = ol.kazanan; }
+    }
+
     function bitir() {
+      if (bittiMi) return;
       bittiMi = true;
       Kontrol.ac(false);
       const k = d.oyuncular.find(o => o.id === d.kazanan);
@@ -200,20 +221,81 @@
       setTimeout(() => { if (!durdu) b.bitti({ kazanan: d.kazanan, siralama }); }, 1200);
     }
 
+    // ---------- Ağ ----------
+    const girdiler = {};          // (ev) misafirlerin son gönderdiği yer/yön
+    let giden = [], yayinSayac = 0, gondermeSayac = 0;
+    if (kanal.evMi) {
+      kanal.evDinle((m, id) => {
+        if (m.t !== 'g' || id === b.benId) return;
+        const x = +m.x, z = +m.z, a = +m.a;
+        if ([x, z, a].every(isFinite)) girdiler[id] = { x, z, a };
+      });
+    } else {
+      kanal.dinle(m => {
+        if (durdu || m.t !== 'd') return;
+        d.t = m.zt;
+        m.o.forEach(([id, x, z, a, can, koruma, canli, olumSirasi]) => {
+          const o = d.oyuncular.find(p => p.id === id);
+          Object.assign(o, { can, koruma, canli: !!canli, olumSirasi });
+          if (id === b.benId) {
+            // Kendi robotum bende yürür; ev çok farklı bir yer biliyorsa (ör. itildim) ona uyarım
+            if (Math.hypot(o.x - x, o.z - z) > 2) { o.x = x; o.z = z; }
+          } else { o.hedefX = x; o.hedefZ = z; o.hedefA = a; }
+        });
+        m.ol.forEach(ol => { aynayaIsle(ol); olayIsle(ol); });
+      });
+    }
+    const ozetle = () => d.oyuncular.map(o => [o.id, +o.x.toFixed(2), +o.z.toFixed(2), +o.a.toFixed(2), o.can, +o.koruma.toFixed(2), o.canli ? 1 : 0, o.olumSirasi]);
+
     const kaldir = Cekirdek.guncelle((dt, t) => {
       if (durdu) return false;
       if (!bittiMi) {
         // Benim girdim: yürüme + nişan (nişan verilmezse yürüdüğüm yöne bakarım)
-        const [hx, hz] = Kontrol.hareket();
+        let [hx, hz] = Kontrol.hareket();
         const a = ben.canli ? Kontrol.nisan(ben.x, ben.z, KY) : null;
         if (a !== null) benA = a;
         else if (Kontrol.dokunmatik && Math.hypot(hx, hz) > 0.2) benA = Math.atan2(hz, hx);   // telefonda nişan yoksa yürüdüğü yöne
-        birikim += dt;
-        while (birikim >= ADIM && !d.bitti) {
-          birikim -= ADIM;
-          const g = { [b.benId]: { hx, hz, a: benA } };
-          M.canlilar(d).forEach(o => { if (o.bot) g[o.id] = M.botGirdi(d, o.id, hafiza[o.id]); });
-          M.adim(d, ADIM, g).forEach(olayIsle);
+        if (kanal.evMi) {
+          birikim += dt;
+          while (birikim >= ADIM && !d.bitti) {
+            birikim -= ADIM;
+            const g = { [b.benId]: { hx, hz, a: benA } };
+            M.canlilar(d).forEach(o => {
+              if (o.bot) g[o.id] = M.botGirdi(d, o.id, hafiza[o.id]);
+              else if (o.id !== b.benId && girdiler[o.id]) g[o.id] = girdiler[o.id];
+            });
+            const ol = M.adim(d, ADIM, g);
+            ol.forEach(olayIsle);
+            if (kanal.online) giden.push(...ol);
+          }
+          // Herkese durum
+          if (kanal.online && ((yayinSayac += dt) >= YAYIN_SN || giden.some(o => o.tip === 'bitti'))) {
+            yayinSayac = 0;
+            kanal.yayinla({ t: 'd', zt: d.t, o: ozetle(), ol: giden });
+            giden = [];
+          }
+        } else {
+          // Misafir: kendi robotumu yürütürüm, kurşunları ilerletirim
+          d.t += dt;
+          if (ben.canli) {
+            if (d.t < 0) hx = hz = 0;
+            M.hareketEt(d, ben, hx, hz, dt);
+            ben.a = benA;
+            if ((gondermeSayac += dt) >= YAYIN_SN) { gondermeSayac = 0; kanal.evaGonder({ t: 'g', x: ben.x, z: ben.z, a: ben.a }); }
+          }
+          d.kursunlar = d.kursunlar.filter(k => {
+            k.x += k.dx * k.hiz * dt; k.z += k.dz * k.hiz * dt;
+            if (Math.abs(k.x) > M.ODA.w || Math.abs(k.z) > M.ODA.h) return false;
+            return !d.kolonlar.some(({ x, z }) => Math.hypot(k.x - x, k.z - z) < M.KOLON_R + M.KURSUN_R);
+          });
+          d.oyuncular.forEach(o => {
+            if (o.id === b.benId) return;
+            const k = Math.min(1, dt * 14);
+            o.x += (o.hedefX - o.x) * k; o.z += (o.hedefZ - o.z) * k;
+            let fark = o.hedefA - o.a; fark = Math.atan2(Math.sin(fark), Math.cos(fark));
+            o.a += fark * k;
+          });
+          d.oyuncular.forEach(o => { if (o.koruma > 0) o.koruma = Math.max(0, o.koruma - dt); });
         }
       }
 
@@ -257,7 +339,7 @@
       d.kursunlar.forEach(k => {
         var_.add(k.k);
         let n = KURSUN.get(k.k);
-        if (!n) { n = kursunYap(renk(k.sahip)); grup.add(n); KURSUN.set(k.k, n); n.userData.dogum = d.t; }
+        if (!n) { n = kursunYap(renk(k.sahip)); grup.add(n); KURSUN.set(k.k, n); }
         n.position.set(k.x, KY, k.z);
         n.rotation.y = -Math.atan2(k.dz, k.dx);
       });
@@ -275,6 +357,11 @@
         Object.values(R).forEach(r => r.sil());
         Cekirdek.sahne.remove(grup);
         grup.traverse(n => { n.geometry?.dispose(); });
+      },
+      // (ev) Bağlantısı kopan oyuncunun yerine bot oynar
+      koptu(id) {
+        const o = d.oyuncular.find(p => p.id === id);
+        if (o) o.bot = true;
       },
     };
   }

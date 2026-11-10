@@ -309,6 +309,8 @@ const Cekirdek = (() => {
   }
 
   return {
+    // kare: testte arka plandaki sekmede kareyi elle ilerletmek için (oyun kullanmaz)
+    kare,
     baslat, guncelle, animasyon, kameraAyarla, zemineIsin, ekranda, salla, etiket, robotYap, isinYap, patlama, parlamaDokusu,
     get sahne() { return sahne; }, get kamera() { return kamera; }, get tuval() { return renderer.domElement; },
   };

@@ -61,6 +61,8 @@ const Ses = (() => {
   // Ağır çekim ateş: kalın, yavaşlayan "vuuum"
   const agirAtes = () => { ton(320, { sure: 0.5, bitis: 90, tip: 'sawtooth', seviye: 0.05 }); gurultu({ sure: 0.45, frekans: 1200, bitisFrekans: 200, tip: 'bandpass', seviye: 0.08 }); };
   const isabet = () => { ton(880, { sure: 0.12, bitis: 220, tip: 'square', seviye: 0.1 }); gurultu({ sure: 0.25, frekans: 2500, bitisFrekans: 300, seviye: 0.25 }); };
+  // "Dın": çan sesi (son sayımda daha ince ve uzun)
+  const din = (son = false) => { const f = son ? 1320 : 880; ton(f, { sure: son ? 1.1 : 0.7, seviye: 0.22 }); ton(f * 2.01, { sure: son ? 0.8 : 0.45, seviye: 0.07 }); ton(f * 3.02, { sure: 0.25, seviye: 0.03 }); };
   const tik = () => ton(1500, { sure: 0.04, tip: 'square', seviye: 0.04 });
   const kazanma = () => [523, 659, 784, 1047, 784, 1047].forEach((f, i) => ton(f, { gecikme: i * 0.12, sure: 0.22, tip: 'triangle', seviye: 0.16 }));
   const kaybetme = () => [392, 330, 262, 196].forEach((f, i) => ton(f, { gecikme: i * 0.18, sure: 0.3, tip: 'triangle', seviye: 0.14 }));
@@ -80,5 +82,5 @@ const Ses = (() => {
     if (ana) ana.gain.value = v ? 0.8 : 0;
   }
 
-  return { agirAtes, isabet, bip, gizlen, belir, lazer, patlama, dusus, uyari, tik, kazanma, kaybetme, ortam, ac, motor, get acik() { return acik; } };
+  return { din, agirAtes, isabet, bip, gizlen, belir, lazer, patlama, dusus, uyari, tik, kazanma, kaybetme, ortam, ac, motor, get acik() { return acik; } };
 })();

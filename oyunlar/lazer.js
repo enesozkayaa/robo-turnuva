@@ -132,12 +132,27 @@
     baslat,
   });
 
+  // Online: kurallar odayı açanda (kanal.evMi) yürür. Her tur başında ev herkese durumu yollar,
+  // herkes kendi robotunu kendi cihazında yürütür, görünmezlik bitince yerini eve gönderir,
+  // ev atışı hesaplayıp sonucu herkese yollar.
+  // Mesajlar: ev → herkes { t: 'tur', d }  { t: 'sonuc', s, d }  { t: 'bitti', s, siralama }
+  //           oyuncu → ev { t: 'poz', tur, x, z, a }
+  const ozet = d => ({
+    tur: d.tur, seviye: d.seviye, bitti: d.bitti, kazanan: d.kazanan,
+    oyuncular: d.oyuncular.map(o => ({ id: o.id, x: o.x, z: o.z, a: o.a, canli: o.canli, olumTuru: o.olumTuru, neden: o.neden })),
+  });
+  function uygula(d, o) {
+    Object.assign(d, { tur: o.tur, seviye: o.seviye, bitti: o.bitti, kazanan: o.kazanan });
+    o.oyuncular.forEach(p => Object.assign(d.oyuncular.find(q => q.id === p.id), p));
+  }
+
   function baslat(b) {
+    const { kanal } = b;
     const d = M.yeni(b.oyuncular.map(o => ({ id: o.id, ad: o.ad, renk: o.renk, bot: o.bot })));
     const grup = new THREE.Group();
     Cekirdek.sahne.add(grup);
     const arena = arenaKur(grup);
-    const R = {}, ISIN = {}, HAYALET = {};
+    const R = {}, ISIN = {};
     d.oyuncular.forEach(o => {
       const r = Cekirdek.robotYap(o.renk, o.ad);
       grup.add(r.grup);
@@ -147,15 +162,13 @@
       ISIN[o.id] = Cekirdek.isinYap(o.renk);
       ISIN[o.id].goster(false);
       grup.add(ISIN[o.id].grup);
-      HAYALET[o.id] = hayaletYap(o.renk, o.ad);
-      grup.add(HAYALET[o.id]);
     });
     Cekirdek.kameraAyarla(M.KAFES + 0.6, 0.98);
 
     const ben = () => d.oyuncular.find(o => o.id === b.benId);
     const poz = {};                 // turdaki anlık yerler { id: {x, z, a} }
-    let hedefler = {};              // botların bu turki kararları
-    let asama = 'hazir', zaman = 0, sonSaniye = 0, durdu = false, uyariVar = false;
+    let hedefler = {};              // (ev) botların bu turki kararları
+    let asama = 'bekle', zaman = 0, sonSaniye = 0, durdu = false, uyariVar = false;
     const bekle = sn => Cekirdek.animasyon(sn, () => {});
 
     function hudOyuncular() {
@@ -171,6 +184,7 @@
     function turBasla() {
       if (durdu) return;
       asama = 'hazir'; zaman = M.SURE.hazir; sonSaniye = 0;
+      d.oyuncular.forEach(o => { if (!o.canli) { R[o.id].goster(false); ISIN[o.id].goster(false); } });
       M.canlilar(d).forEach(o => {
         poz[o.id] = { x: o.x, z: o.z, a: o.a };
         R[o.id].goster(true); R[o.id].saydam(1); R[o.id].konum(o.x, o.z); R[o.id].yon(o.a);
@@ -190,28 +204,33 @@
       const izleyici = !ben().canli;
       hedefler = {};
       M.canlilar(d).forEach(o => {
-        if (o.bot) hedefler[o.id] = M.botKarari(d, o.id);
+        if (o.bot && kanal.evMi) hedefler[o.id] = M.botKarari(d, o.id);
         if (o.id === b.benId) { R[o.id].saydam(0.45); return; }
-        if (izleyici) { R[o.id].saydam(0.45); ISIN[o.id].goster(true); isinCiz(o.id); return; }
+        // Elenen oyuncu botları izleyebilir (botların yerini bu cihaz biliyorsa)
+        if (izleyici && o.bot && kanal.evMi) { R[o.id].saydam(0.45); ISIN[o.id].goster(true); isinCiz(o.id); return; }
         R[o.id].goster(false);
       });
       Ses.gizlen();
       b.hud.perde('gizli');
       b.hud.buyuk('👻 GÖRÜNMEZ', String(sonSaniye), 'gizli');
-      b.hud.bilgi(izleyici ? '👻 Herkes görünmez. Sen hepsini görüyorsun.' : '👻 Kimse seni görmüyor! Yerini değiştir, lazerini çevir.');
+      b.hud.bilgi(izleyici ? '👻 Herkes görünmez…' : '👻 Kimse seni görmüyor! Yerini değiştir, lazerini çevir.');
     }
 
-    async function ates() {
+    // Görünmezlik bitti: yerimi eve gönder, sonucu bekle
+    function gizliBitti() {
+      asama = 'bekle';
+      b.hud.perde('');
+      if (ben().canli) kanal.evaGonder({ t: 'poz', tur: d.tur, ...poz[b.benId] });
+      if (kanal.evMi) evGizliBitti();
+      else b.hud.buyuk('⚡', '', 'ates');
+    }
+
+    async function ates(s) {
       asama = 'atis';
       b.hud.perde('flas');
       b.hud.ipucu('');
-      const oncekiCanli = M.canlilar(d);
-      const pozlar = {};
-      oncekiCanli.forEach(o => { pozlar[o.id] = poz[o.id]; });
-      const s = M.turuBitir(d, pozlar);
-      Object.values(HAYALET).forEach(h => { h.visible = false; });
-      oncekiCanli.forEach(o => {
-        R[o.id].goster(true); R[o.id].saydam(1); R[o.id].konum(o.x, o.z); R[o.id].yon(o.a);
+      s.isinlar.forEach(i => {
+        R[i.id].goster(true); R[i.id].saydam(1); R[i.id].konum(i.x1, i.z1); R[i.id].yon(Math.atan2(i.z2 - i.z1, i.x2 - i.x1));
       });
       s.isinlar.forEach(i => { ISIN[i.id].ayarla(i.x1, i.z1, i.x2, i.z2, Y); ISIN[i.id].goster(true); ISIN[i.id].opaklik(1); });
       Ses.belir();
@@ -220,8 +239,8 @@
       Ses.lazer();
       if (durdu) return;
       s.vurulanlar.forEach(id => {
-        const o = d.oyuncular.find(p => p.id === id);
-        Cekirdek.patlama(o.x, 0.7, o.z, o.renk);
+        const i = s.isinlar.find(x => x.id === id), o = d.oyuncular.find(p => p.id === id);
+        Cekirdek.patlama(i ? i.x1 : o.x, 0.7, i ? i.z1 : o.z, o.renk);
         R[id].goster(false);
       });
       if (s.vurulanlar.length) Ses.patlama();
@@ -243,8 +262,7 @@
         b.hud.bilgi(s.dusenler.length ? `🕳️ Düşenler: ${s.dusenler.map(ad).join(', ')}` : '🕳️ Dış halka düştü, kimse düşmedi!', !!s.dusenler.length);
         Ses.dusus();
         Cekirdek.salla(0.25);
-        const dusen = s.dusenler.map(id => R[id]);
-        dusen.forEach(r => { halka.parca.attach(r.grup); });   // robot halkayla birlikte düşsün
+        s.dusenler.forEach(id => { halka.parca.attach(R[id].grup); });   // robot halkayla birlikte düşsün
         const yon = Math.random() * Math.PI * 2;
         await Cekirdek.animasyon(M.SURE.dusus, t => {
           halka.parca.position.y = -t * t * 30;
@@ -255,23 +273,71 @@
         hudOyuncular();
         if (durdu) return;
       }
-
-      if (s.bitti) return bitir(s);
-      await bekle(0.5);
-      turBasla();
+      // Ev sıradakini başlatır
+      if (kanal.evMi) {
+        await bekle(0.6);
+        if (durdu) return;
+        if (s.bitti) kanal.yayinla({ t: 'bitti', s, siralama: siralamaYap() });
+        else kanal.yayinla({ t: 'tur', d: ozet(d) });
+      }
     }
 
-    function bitir(s) {
+    function siralamaYap() {
+      return [...d.oyuncular].sort((a, c) => (c.canli - a.canli) || (c.olumTuru - a.olumTuru)).map(o => ({
+        id: o.id,
+        neden: o.canli ? '🏆 ayakta kaldı' : o.neden === 'dustu' ? `🕳️ ${o.olumTuru}. turda düştü` : `⚡ ${o.olumTuru}. turda vuruldu`,
+      }));
+    }
+    function bitir(s, siralama) {
       asama = 'bitti';
       const kazanan = d.oyuncular.find(o => o.id === s.kazanan);
       b.hud.buyuk(kazanan ? `🏆 ${kazanan.ad}` : '🤝 BERABERE', '');
       b.hud.bilgi('');
-      if (kazanan) Cekirdek.animasyon(1.2, t => { R[kazanan.id].grup.position.y = Math.sin(t * Math.PI) * 0.8; R[kazanan.id].yon(kazanan.a + t * Math.PI * 4); });
-      const siralama = [...d.oyuncular].sort((a, c) => (c.canli - a.canli) || (c.olumTuru - a.olumTuru)).map(o => ({
-        id: o.id,
-        neden: o.canli ? '🏆 ayakta kaldı' : o.neden === 'dustu' ? `🕳️ ${o.olumTuru}. turda düştü` : `⚡ ${o.olumTuru}. turda vuruldu`,
-      }));
+      if (kazanan) { R[kazanan.id].goster(true); Cekirdek.animasyon(1.2, t => { R[kazanan.id].grup.position.y = Math.sin(t * Math.PI) * 0.8; R[kazanan.id].yon(kazanan.a + t * Math.PI * 4); }); }
       setTimeout(() => { if (!durdu) b.bitti({ kazanan: s.kazanan, siralama }); }, 900);
+    }
+
+    // ---------- Herkeste: evden gelenler ----------
+    kanal.dinle(m => {
+      if (durdu) return;
+      if (m.t === 'tur') { uygula(d, m.d); turBasla(); }
+      else if (m.t === 'sonuc') { uygula(d, m.d); ates(m.s); }
+      else if (m.t === 'bitti') bitir(m.s, m.siralama);
+    });
+
+    // ---------- Sadece ev: yerleri toplar, atışı hesaplar ----------
+    const gelenPoz = {};
+    let evBekleme = null, evHesaplandi = true;
+    function evGizliBitti() {
+      evHesaplandi = false;
+      clearTimeout(evBekleme);
+      evBekleme = setTimeout(evHesapla, 1500);   // gelmeyen olursa son bildiği yeri kullanır
+      evKontrol();
+    }
+    function evKontrol() {
+      if (evHesaplandi || asama === 'gizli' || asama === 'hazir') return;
+      const eksik = M.canlilar(d).some(o => !o.bot && o.id !== b.benId && !gelenPoz[o.id]);
+      if (!eksik) evHesapla();
+    }
+    function evHesapla() {
+      if (evHesaplandi || durdu) return;
+      evHesaplandi = true;
+      clearTimeout(evBekleme);
+      const pozlar = {};
+      M.canlilar(d).forEach(o => { pozlar[o.id] = o.bot || o.id === b.benId ? poz[o.id] : (gelenPoz[o.id] || poz[o.id]); });
+      Object.keys(gelenPoz).forEach(k => delete gelenPoz[k]);
+      const s = M.turuBitir(d, pozlar);
+      kanal.yayinla({ t: 'sonuc', s, d: ozet(d) });
+    }
+    if (kanal.evMi) {
+      kanal.evDinle((m, id) => {
+        if (m.t !== 'poz' || m.tur !== d.tur || id === b.benId) return;
+        const x = +m.x, z = +m.z, a = +m.a;
+        if (![x, z, a].every(isFinite)) return;
+        gelenPoz[id] = { x, z, a };
+        evKontrol();
+      });
+      setTimeout(() => { if (!durdu) kanal.yayinla({ t: 'tur', d: ozet(d) }); }, 300);
     }
 
     // ---------- Her kare ----------
@@ -299,7 +365,7 @@
         isinCiz(o.id);
       }
       if (asama === 'gizli') {
-        // Botlar hedeflerine yürür
+        // (ev) Botlar hedeflerine yürür
         Object.entries(hedefler).forEach(([id, h]) => {
           const p = poz[id];
           const dx = h.x - p.x, dz = h.z - p.z, L = Math.hypot(dx, dz), adim = M.HIZ * dt;
@@ -332,19 +398,29 @@
             setTimeout(() => { if (!durdu && asama === 'gizli') { h.x = kacis[0]; h.z = kacis[1]; } }, gecikme * 1000);
           });
         }
-        if (zaman <= 0) { b.hud.perde(''); ates(); }
+        if (zaman <= 0) gizliBitti();
       }
     });
 
-    turBasla();
+    hudOyuncular();
+    b.hud.bilgi('⏳ Hazırlanıyor…');
 
     return {
       durdur() {
         durdu = true;
+        clearTimeout(evBekleme);
         kaldir();
         Object.values(R).forEach(r => r.sil());
         Cekirdek.sahne.remove(grup);
         grup.traverse(n => { n.geometry?.dispose(); });
+      },
+      // (ev) Bağlantısı kopan oyuncunun yerine bot oynar
+      koptu(id) {
+        const o = d.oyuncular.find(p => p.id === id);
+        if (!o) return;
+        o.bot = true;
+        if (asama === 'gizli' && o.canli && kanal.evMi) hedefler[id] = M.botKarari(d, id);
+        evKontrol();
       },
     };
   }

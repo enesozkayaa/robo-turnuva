@@ -199,3 +199,76 @@ body.dokunmatik #ipucu { display: none !important; }
   #sayac { font-size: 34px; }
 }
 .oyuncu .ek { font-size: 11px; letter-spacing: -1px; }
+
+/* Online oda */
+.onlineSatir { display: flex; gap: 8px; }
+.onlineSatir button { padding: 10px 14px; flex: none; }
+.onlineSatir .giris { flex: 1; min-width: 0; text-transform: uppercase; letter-spacing: 2px; text-align: center; }
+#odaKutu { text-align: left; padding: 10px 12px; border-radius: 12px; background: rgba(46, 230, 255, 0.08); border: 1px solid rgba(46, 230, 255, 0.25); }
+.odaKod { font-size: 15px; }
+.odaKod b { font-family: 'Orbitron', sans-serif; font-size: 24px; letter-spacing: 4px; color: var(--neon); user-select: all; -webkit-user-select: all; }
+#odaKisiler { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 4px; }
+#odaKisiler li { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+#odaKisiler .botSatir { opacity: 0.6; font-weight: 400; }
+#odadanCikBtn { width: 100%; margin-top: 6px; padding: 9px; }
+#onlineDurum:empty { display: none; }
+.miniOyun .bekle { font-size: 12px; color: var(--soluk); text-align: center; max-width: 80px; }
+#odaBilgisi {
+  position: fixed; top: max(58px, calc(env(safe-area-inset-top) + 48px)); right: 10px; z-index: 5;
+  padding: 4px 10px; border-radius: 10px; background: rgba(0, 0, 0, 0.5); font-size: 12px; color: var(--soluk);
+}
+#odaBilgisi b { color: var(--neon); letter-spacing: 2px; }
+
+/* ---------- Zaman Avcısı ---------- */
+#zaman {
+  position: fixed; left: 0; right: 0; top: calc(56px + env(safe-area-inset-top)); bottom: 0; z-index: 3;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none;
+}
+.zmUst { display: flex; gap: 10px; font-size: 13px; font-weight: 700; color: var(--soluk); }
+.zmUst span { background: rgba(0, 0, 0, 0.5); padding: 4px 10px; border-radius: 10px; }
+.zmHedefYazi { font-family: 'Orbitron', sans-serif; font-size: clamp(18px, 4vw, 26px); text-shadow: 0 0 14px rgba(46, 230, 255, 0.6); }
+.zmHedefYazi b { font-size: 1.6em; color: var(--neon); }
+.zmSaat { position: relative; width: min(64vw, 40vh, 340px); aspect-ratio: 1; }
+.zmSaat svg { width: 100%; height: 100%; filter: drop-shadow(0 0 18px rgba(123, 77, 255, 0.45)); }
+.zmSaat .kasa { fill: #1b1f3a; stroke: #7b4dff; stroke-width: 3; }
+.zmSaat .yuz { fill: #0b0d1f; }
+.zmSaat .cizgiler line { stroke: #4a5280; stroke-width: 1; }
+.zmSaat .cizgiler line.orta { stroke: #7b84b8; stroke-width: 1.5; }
+.zmSaat .cizgiler line.kalin { stroke: #e6ecff; stroke-width: 3; }
+.zmSaat .sayilar text { fill: #c9d2ff; font: 700 15px Orbitron, sans-serif; text-anchor: middle; }
+.zmSaat .hedefCizgi { stroke: #ffd23b; stroke-width: 3; stroke-dasharray: 5 4; opacity: 0.9; }
+.zmSaat .yelkovan { stroke: #ff3b8d; stroke-width: 4; stroke-linecap: round; filter: drop-shadow(0 0 4px #ff3b8d); }
+.zmSaat .uc { fill: #fff; }
+.zmSaat #zmYelkovan { transition: opacity 0.35s; }
+.zmSaat .gobek { fill: #ff3b8d; stroke: #fff; stroke-width: 2; }
+.zmSaat .kor { font-size: 26px; text-anchor: middle; transition: opacity 0.3s; }
+#zmSayim {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: clamp(60px, 16vw, 120px); color: #fff;
+  text-shadow: 0 0 30px rgba(46, 230, 255, 0.9), 0 0 6px #000;
+}
+#zmSayim.vur { animation: sayimVur 0.9s ease-out; }
+@keyframes sayimVur { 0% { transform: scale(1.8); opacity: 0; } 20% { transform: scale(1); opacity: 1; } 100% { transform: scale(0.9); opacity: 0.85; } }
+#zmDur {
+  pointer-events: auto; margin-top: auto; margin-bottom: calc(66px + env(safe-area-inset-bottom)); font-size: clamp(20px, 5vw, 28px); padding: 16px 42px; border-radius: 40px;
+  background: linear-gradient(135deg, #ff3b8d, #ff8a2a); box-shadow: 0 6px 28px rgba(255, 59, 141, 0.55);
+  font-family: 'Orbitron', sans-serif; letter-spacing: 2px; touch-action: manipulation;
+}
+#zmDur:not(:disabled) { animation: durNabiz 1s infinite; }
+@keyframes durNabiz { 50% { box-shadow: 0 6px 40px rgba(255, 59, 141, 0.95); transform: scale(1.04); } }
+#zmSonuc {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6; pointer-events: none;
+  background: rgba(8, 8, 26, 0.92); border: 1px solid rgba(46, 230, 255, 0.35); border-radius: 16px; padding: 12px 14px;
+  box-shadow: 0 0 40px rgba(123, 77, 255, 0.4); animation: zipla 0.4s cubic-bezier(.2, 1.4, .4, 1);
+}
+#zmSonuc table { border-collapse: collapse; font-size: clamp(13px, 3.4vw, 16px); }
+#zmSonuc td { padding: 5px 8px; white-space: nowrap; }
+#zmSonuc tr.ben td { color: var(--neon); font-weight: 800; }
+#zmSonuc .nokta { display: inline-block; margin-right: 6px; vertical-align: middle; }
+#zmSonuc .fark { color: var(--soluk); }
+#zmSonuc .puan { color: #ffd23b; font-weight: 800; }
+#zaman.mod-kor .zmSaat svg { filter: drop-shadow(0 0 18px rgba(255, 59, 141, 0.35)); }
+@media (max-height: 520px) and (orientation: landscape) {
+  .zmSaat { width: min(40vw, 46vh); }
+  #zmDur { padding: 10px 30px; }
+}
