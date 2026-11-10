@@ -322,3 +322,12 @@ body.dokunmatik #evEylem { bottom: calc(180px + env(safe-area-inset-bottom)); }
 }
 #flEylem.yesil { background: linear-gradient(135deg, #7dff4a, #1aa64a); color: #06240f; box-shadow: 0 0 24px rgba(125, 255, 74, 0.7); }
 body.dokunmatik #flEylem { bottom: calc(180px + env(safe-area-inset-bottom)); }
+
+/* ---------- Mayın Koridoru: tarama düğmesi ---------- */
+#myTara {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(64px + env(safe-area-inset-bottom)); z-index: 5;
+  min-width: 140px; padding: 14px 26px; font-size: 18px; border-radius: 30px; font-family: 'Orbitron', sans-serif; touch-action: manipulation;
+  background: linear-gradient(135deg, #3a3f60, #23263a); box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
+}
+#myTara.hazir { background: linear-gradient(135deg, #2ee6ff, #2b7be6); box-shadow: 0 0 24px rgba(46, 230, 255, 0.7); }
+body.dokunmatik #myTara { bottom: calc(180px + env(safe-area-inset-bottom)); }

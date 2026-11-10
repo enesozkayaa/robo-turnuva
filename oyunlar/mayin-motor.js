@@ -1,0 +1,172 @@
+// =============================================================
+// Robo Turnuva - Mayın Koridoru: kurallar (ekran yok, sadece hesap)
+// Uzun koridor (ileri = -z). Yerde gizli mayınlar (tohumdan, herkeste aynı). Sadece ileri ve yanlara gidilir.
+// Her 5 saniyede bir etrafını tarayabilirsin (yakın çember): o çemberdeki mayınları sen görürsün.
+// İlk mayına basınca duman çıkar, sürünerek yavaş gidersin; ikincisinde patlarsın.
+// Koridorun sonundaki uzay üssüne ilk varan kazanır. Süre biterse varamayan patlar, puan alamaz.
+// Birbirini itme var. Sabit adımlı simülasyon: adim(d, dt, girdiler).
+// =============================================================
+
+const MayinMotor = (() => {
+  const L = 40, W = 3;                    // koridor uzunluğu, yarı genişliği (5 robot yan yana sığar)
+  const ROBOT_R = 0.38, AYAK = 0.22;       // çarpışma yarıçapı, mayına basma yarıçapı
+  const MAYIN_R = 0.16, MAYIN_SAYI = 26;
+  const HIZ = 2.6, HASARLI_HIZ = 1.1;
+  const TARAMA_R = 2.8, TARAMA_ARA = 5;
+  const BASLANGIC = 3, BITIS_Z = -L;      // başlangıç çizgisi z=0, üs z=-L
+  const BAS_X = [-1.8, -0.6, 0.6, 1.8];
+
+  function tohumlu(t) {
+    return () => { t |= 0; t = (t + 0x6D2B79F5) | 0; let r = Math.imul(t ^ (t >>> 15), 1 | t); r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r; return ((r ^ (r >>> 14)) >>> 0) / 4294967296; };
+  }
+  function mayinlarYap(tohum) {
+    const rnd = tohumlu(tohum), m = [];
+    for (let deneme = 0; m.length < MAYIN_SAYI && deneme < 5000; deneme++) {
+      const x = (rnd() * 2 - 1) * (W - 0.3), z = -3 - rnd() * (L - 6);
+      if (m.some(p => Math.hypot(p.x - x, p.z - z) < 1.0)) continue;
+      m.push({ id: m.length, x, z, durum: 'gizli' });   // gizli | patladi
+    }
+    return m;
+  }
+
+  function yeni(oyuncular, tohum, sure = 60) {
+    return {
+      tohum, t: -BASLANGIC, sure, kalan: sure, bitti: false, kazanan: null, siraSayac: 0,
+      mayinlar: mayinlarYap(tohum),
+      oyuncular: oyuncular.map((o, i) => ({
+        ...o, x: BAS_X[i % 4], z: 0, a: -Math.PI / 2, vx: 0, vz: 0,
+        durum: 'oynuyor', hasarli: false, sira: 0, tarama: 0,
+      })),
+    };
+  }
+  const oynayan = d => d.oyuncular.filter(o => o.durum === 'oynuyor');
+  function sinirla(o) {
+    o.x = Math.max(-W + ROBOT_R, Math.min(W - ROBOT_R, o.x));
+    o.z = Math.min(1, Math.max(BITIS_Z - 1, o.z));
+  }
+  // Tek robotun yürüyüşü (misafir kendi robotunu da bununla yürütür). Geri gidilmez.
+  function yuru(o, hx, hz, dt) {
+    hz = Math.min(0, hz);   // sadece ileri (-z)
+    const L2 = Math.hypot(hx, hz), h = o.hasarli ? HASARLI_HIZ : HIZ;
+    if (L2 > 1) { hx /= L2; hz /= L2; }
+    const ex = o.x, ez = o.z;
+    o.x += (hx * h + o.vx) * dt; o.z += (hz * h + o.vz) * dt;
+    const s = Math.exp(-5 * dt); o.vx *= s; o.vz *= s;
+    sinirla(o);
+    if (Math.hypot(o.x - ex, o.z - ez) > 0.002) o.a = Math.atan2(o.z - ez, o.x - ex);
+  }
+  // Tarama: o noktanın etrafındaki mayınlar
+  const taramaSonucu = (d, x, z) => d.mayinlar.filter(m => m.durum === 'gizli' && Math.hypot(m.x - x, m.z - z) <= TARAMA_R).map(m => m.id);
+
+  function bitisKontrol(d, olaylar) {
+    if (oynayan(d).length) return;
+    d.bitti = true;
+    const ilk = d.oyuncular.find(o => o.sira === 1);
+    d.kazanan = ilk ? ilk.id : null;
+    olaylar.push({ tip: 'bitti', kazanan: d.kazanan });
+  }
+
+  // girdiler: { id: { hx, hz } } ya da online misafir için { x, z }
+  function adim(d, dt, girdiler = {}) {
+    const olaylar = [];
+    if (d.bitti) return olaylar;
+    d.t += dt;
+    if (d.t < 0) return olaylar;
+    d.kalan -= dt;
+    const yasayan = oynayan(d);
+    yasayan.forEach(o => {
+      const g = girdiler[o.id] || {};
+      const ex = o.x, ez = o.z;
+      if (typeof g.x === 'number' && isFinite(g.x) && isFinite(g.z)) {
+        // Misafir: yerini kendisi gönderir (geri gidemez, hızı aşamaz)
+        const enCok = (o.hasarli ? HASARLI_HIZ : HIZ) * dt * 4 + 0.5;
+        const nz = Math.min(o.z + 0.05, g.z);
+        if (Math.hypot(g.x - o.x, nz - o.z) < enCok) { o.x = g.x; o.z = nz; }
+        if (isFinite(+g.a)) o.a = +g.a;
+        const s = Math.exp(-5 * dt); o.vx *= s; o.vz *= s;
+        sinirla(o);
+      } else yuru(o, +g.hx || 0, +g.hz || 0, dt);
+      o.hizX = (o.x - ex) / dt; o.hizZ = (o.z - ez) / dt;
+    });
+    // Çarpışma ve itme
+    for (let i = 0; i < yasayan.length; i++) for (let j = i + 1; j < yasayan.length; j++) {
+      const p = yasayan[i], q = yasayan[j], dx = q.x - p.x, dz = q.z - p.z, L2 = Math.hypot(dx, dz), en = ROBOT_R * 2;
+      if (L2 >= en || L2 < 1e-6) continue;
+      const nx = dx / L2, nz = dz / L2, it = (en - L2) / 2;
+      p.x -= nx * it; p.z -= nz * it; q.x += nx * it; q.z += nz * it;
+      sinirla(p); sinirla(q);
+      if (d.t - (p.sonIt?.[q.id] || -9) < 0.5) continue;
+      // Karşısındakine doğru daha hızlı giden iter
+      const pY = Math.max(0, (p.hizX || 0) * nx + (p.hizZ || 0) * nz), qY = Math.max(0, -((q.hizX || 0) * nx + (q.hizZ || 0) * nz));
+      if (Math.max(pY, qY) < 0.8) continue;
+      (p.sonIt ??= {})[q.id] = d.t;
+      const [iten, yiyen, s, hiz] = pY > qY ? [p, q, 1, pY] : [q, p, -1, qY];
+      const g = 1.8 + hiz * 0.9;
+      yiyen.vx += nx * s * g; yiyen.vz += nz * s * g;
+      olaylar.push({ tip: 'it', id: yiyen.id, kim: iten.id, vx: nx * s * g, vz: nz * s * g });
+    }
+    // Mayınlar
+    yasayan.forEach(o => {
+      if (o.durum !== 'oynuyor') return;
+      const m = d.mayinlar.find(q => q.durum === 'gizli' && Math.hypot(q.x - o.x, q.z - o.z) < AYAK + MAYIN_R);
+      if (!m) return;
+      m.durum = 'patladi';
+      if (!o.hasarli) {
+        o.hasarli = true;
+        olaylar.push({ tip: 'mayin', id: o.id, m: m.id, sonuc: 'duman' });
+      } else {
+        o.durum = 'patladi';
+        olaylar.push({ tip: 'mayin', id: o.id, m: m.id, sonuc: 'patladi' });
+      }
+    });
+    // Üsse varış
+    yasayan.forEach(o => {
+      if (o.durum !== 'oynuyor' || o.z > BITIS_Z + 0.6) return;
+      o.durum = 'vardi'; o.sira = ++d.siraSayac;
+      olaylar.push({ tip: 'vardi', id: o.id, sira: o.sira });
+    });
+    // Süre bitti: varamayanlar patlar
+    if (d.kalan <= 0) {
+      oynayan(d).forEach(o => { o.durum = 'patladi'; olaylar.push({ tip: 'sureBitti', id: o.id }); });
+    }
+    bitisKontrol(d, olaylar);
+    return olaylar;
+  }
+
+  // ---------- Botlar ----------
+  // hafiza.bilinen: botun taradığı mayınlar
+  function botGirdi(d, id, hafiza, rnd = Math.random) {
+    const o = d.oyuncular.find(p => p.id === id);
+    if (o.durum !== 'oynuyor' || d.t < 0) return {};
+    hafiza.bilinen ??= new Set();
+    hafiza.cesaret ??= rnd();                      // 0 temkinli → 1 gözü kara
+    hafiza.taramaZ ??= o.z;
+    // Tarama hazırsa tara
+    let tara = false;
+    if (d.t - (hafiza.sonTarama ?? -99) >= TARAMA_ARA) {
+      hafiza.sonTarama = d.t; hafiza.taramaZ = o.z; tara = true;
+      taramaSonucu(d, o.x, o.z).forEach(m => hafiza.bilinen.add(m));
+    }
+    // Taranan alanın dışına çıkmak üzereyse temkinli bot taramayı bekler (süre yetiyorsa)
+    const kalanYol = o.z - BITIS_Z;
+    const yetisir = d.kalan > kalanYol / (o.hasarli ? HASARLI_HIZ : HIZ) + 4;
+    const disinda = o.z < hafiza.taramaZ - TARAMA_R * 0.8;
+    if (disinda && yetisir && rnd() > hafiza.cesaret * 0.02 && hafiza.cesaret < 0.65) return { tara };
+    // Önündeki bilinen mayınlardan uzak bir şerit seç
+    const ileri = d.mayinlar.filter(m => hafiza.bilinen.has(m.id) && m.durum === 'gizli' && m.z < o.z + 0.3 && m.z > o.z - 2.6);
+    let enIyi = o.x, enIyiPuan = -Infinity;
+    for (let x = -W + 0.5; x <= W - 0.5; x += 0.25) {
+      const tehlike = ileri.reduce((t, m) => Math.min(t, Math.abs(m.x - x)), 9);
+      const puan = Math.min(tehlike, 1.2) * 3 - Math.abs(x - o.x) * 0.6;
+      if (puan > enIyiPuan) { enIyiPuan = puan; enIyi = x; }
+    }
+    const dx = enIyi - o.x;
+    // Hemen önünde bilinen mayın varken yana kayana kadar yavaşla
+    const tamOnunde = ileri.some(m => Math.abs(m.x - o.x) < AYAK + MAYIN_R + 0.1 && m.z < o.z && m.z > o.z - 0.9);
+    return { hx: Math.max(-1, Math.min(1, dx * 2.5)), hz: tamOnunde ? -0.05 : -1, tara };
+  }
+
+  return { L, W, ROBOT_R, AYAK, MAYIN_R, HIZ, HASARLI_HIZ, TARAMA_R, TARAMA_ARA, BASLANGIC, BITIS_Z, mayinlarYap, yeni, adim, yuru, taramaSonucu, botGirdi, oynayan };
+})();
+
+if (typeof module !== 'undefined') module.exports = MayinMotor;
