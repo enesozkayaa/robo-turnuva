@@ -79,7 +79,7 @@
     kurallar: [
       'Herkes bir <b>forklift</b> sürer ve kare platformun bir köşesinde <b>kendi bölgesi</b> vardır.',
       `Her <b>${M.DUSUS_ARA} saniyede</b> ortaya yukarıdan <b>2 kutu</b> düşer.`,
-      'Kutunun önüne gel ve <b>AL</b> (boşluk / sol tık / düğme). Kendi bölgene götür: bölgen <b>yeşil</b> yanınca <b>BIRAK</b>.',
+      'Kutunun önüne gel ve <b>AL</b> (boşluk / sol tık / düğme). Kendi bölgene götür: bölgen <b>yeşil</b> yanınca boş bir yere <b>BIRAK</b>. Kutular üst üste konmaz; taşıdığın kutuyla diğerlerini ileri itebilirsin.',
       'Rakibin bölgesindeki kutuyu alıp kendine götürebilirsin! Kutu taşıyana hızla çarparsan kutusunu düşürür.',
       'Süre bitince bölgesinde <b>en çok kutu</b> olan kazanır.',
       'Bilgisayar: <b>WASD / ok tuşları</b> sür. Telefon: <b>sol</b> joystick, alttaki düğme.',
@@ -174,6 +174,7 @@
         else { Ses.din(); if (ol.id === b.benId) b.hud.bilgi('✅ Kutu bölgende!'); }
         hudOyuncular();
       } else if (ol.tip === 'it') { Cekirdek.salla(ol.id === b.benId ? 0.15 : 0.05); }
+      else if (ol.tip === 'yerYok') { if (ol.id === b.benId) { Ses.uyari(); b.hud.bilgi('⛔ Burada kutu var! Boş bir yere götür ya da kutuyu ileri it.', true); } }
       else if (ol.tip === 'bitti') bitir(ol);
     }
     function bitir(ol) {

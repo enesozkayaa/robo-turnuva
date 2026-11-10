@@ -38,6 +38,15 @@ const ForkliftMotor = (() => {
     return s;
   }
   const catalUcu = o => [o.x + Math.cos(o.a) * CATAL, o.z + Math.sin(o.a) * CATAL];
+  // İki kutu (kare) üst üste biniyor mu
+  const cakisir = (x1, z1, x2, z2) => Math.abs(x1 - x2) < KUTU * 2 - 0.02 && Math.abs(z1 - z2) < KUTU * 2 - 0.02;
+  // Kutuyu (cx, cz) noktasından uzaklaştır: en az örtüşen eksende it (kare kutular yan yana dizilsin)
+  function itAyir(k, cx, cz, mesafe = KUTU * 2) {
+    const dx = k.x - cx, dz = k.z - cz;
+    if (Math.abs(dx) >= Math.abs(dz)) k.x = cx + (dx >= 0 ? 1 : -1) * mesafe;
+    else k.z = cz + (dz >= 0 ? 1 : -1) * mesafe;
+    sinirla(k, KUTU);
+  }
   const sinirla = (o, r) => { o.x = Math.max(-P + r, Math.min(P - r, o.x)); o.z = Math.max(-P + r, Math.min(P - r, o.z)); };
 
   function kutuBirak(d, o, olaylar, neden) {
@@ -111,6 +120,26 @@ const ForkliftMotor = (() => {
       olaylar.push({ tip: 'it', id: yiyen.id, kim: vuran.id, vx: nx * sgn * g, vz: nz * sgn * g });
       if (yiyen.kutu !== null && hiz > 3) kutuBirak(d, yiyen, olaylar, 'carpma');
     }
+    // Taşınan kutu yerdeki kutulara çarparsa onları önünden iter
+    d.kutular.forEach(k => {
+      if (k.tasiyan === null) return;
+      const o = F.find(p => p.id === k.tasiyan);
+      const [ux, uz] = catalUcu(o);
+      d.kutular.forEach(q => {
+        if (q === k || q.tasiyan !== null || q.y > 0 || !cakisir(q.x, q.z, ux, uz)) return;
+        itAyir(q, ux, uz);
+      });
+    });
+    // Yerdeki kutular birbirinin içine geçmez
+    const yerde = d.kutular.filter(k => k.tasiyan === null && k.y <= 0);
+    for (let tekrar = 0; tekrar < 2; tekrar++) {
+      for (let i = 0; i < yerde.length; i++) for (let j = i + 1; j < yerde.length; j++) {
+        const a = yerde[i], c = yerde[j];
+        if (!cakisir(a.x, a.z, c.x, c.z)) continue;
+        const mx = (a.x + c.x) / 2, mz = (a.z + c.z) / 2;
+        itAyir(a, mx, mz, KUTU); itAyir(c, mx, mz, KUTU);
+      }
+    }
     // Yerdeki kutular forkliftin gövdesinden itilir
     d.kutular.forEach(k => {
       if (k.tasiyan !== null || k.y > 0) return;
@@ -130,13 +159,19 @@ const ForkliftMotor = (() => {
           .sort((a, b) => Math.hypot(a.x - ux, a.z - uz) - Math.hypot(b.x - ux, b.z - uz))[0];
         if (k) { k.tasiyan = o.id; o.kutu = k.id; olaylar.push({ tip: 'aldi', id: o.id, k: k.id }); }
       } else if (bolgede(o.bolge, o.x, o.z)) {
-        kutuBirak(d, o, olaylar, 'bolge');
-        // Bırakılan kutu bölgenin içinde kalsın
-        const k = d.kutular.find(q => q.id === olaylar[olaylar.length - 1].k);
+        // Bırakılacak yer bölgenin içinde ve başka kutunun üstünde olmamalı (kutular iç içe geçmesin)
         const b = BOLGE[o.bolge];
-        k.x = Math.max(b.cx - Z / 2 + KUTU, Math.min(b.cx + Z / 2 - KUTU, k.x));
-        k.z = Math.max(b.cz - Z / 2 + KUTU, Math.min(b.cz + Z / 2 - KUTU, k.z));
-        olaylar[olaylar.length - 1].x = k.x; olaylar[olaylar.length - 1].z = k.z;
+        let [x, z] = catalUcu(o);
+        x = Math.max(b.cx - Z / 2 + KUTU, Math.min(b.cx + Z / 2 - KUTU, x));
+        z = Math.max(b.cz - Z / 2 + KUTU, Math.min(b.cz + Z / 2 - KUTU, z));
+        if (d.kutular.some(q => q.id !== o.kutu && q.tasiyan === null && q.y <= 0 && cakisir(q.x, q.z, x, z))) {
+          olaylar.push({ tip: 'yerYok', id: o.id });
+          return;
+        }
+        kutuBirak(d, o, olaylar, 'bolge');
+        const son = olaylar[olaylar.length - 1];
+        const k = d.kutular.find(q => q.id === son.k);
+        k.x = x; k.z = z; son.x = x; son.z = z;
       }
     });
     // Taşınan kutular çatalın ucunda
@@ -170,10 +205,23 @@ const ForkliftMotor = (() => {
     };
     const b = BOLGE[o.bolge];
     if (o.kutu !== null) {
-      // Kendi bölgesine götür, içine girince bırak
-      const ic = bolgede(o.bolge, o.x, o.z) && Math.hypot(o.x - b.cx, o.z - b.cz) < Z / 2 - 0.3;
-      if (ic) return { hx: 0, hz: 0, eylem: true };
-      return git(b.cx + (rnd() - 0.5) * 0.4, b.cz + (rnd() - 0.5) * 0.4);
+      // Kendi bölgesinde boş bir yer seç (forklift oraya gelince çatalın ucu boş yere denk gelsin)
+      const bos = (x, z) => !d.kutular.some(q => q.tasiyan === null && q.y <= 0 && cakisir(q.x, q.z, x, z));
+      if (!hafiza.yer || hafiza.yerKutu !== o.kutu || !bos(...hafiza.yer) || d.t > hafiza.yerSure) {
+        hafiza.yerKutu = o.kutu; hafiza.yerSure = d.t + 6;
+        let en = null;
+        for (let n = 0; n < 25; n++) {
+          const x = b.cx + (rnd() - 0.5) * (Z - KUTU * 2.2), z = b.cz + (rnd() - 0.5) * (Z - KUTU * 2.2);
+          if (bos(x, z)) { en = [x, z]; break; }
+        }
+        hafiza.yer = en || [b.cx, b.cz];
+      }
+      const [yx, yz] = hafiza.yer;
+      const [ux, uz] = catalUcu(o);
+      if (bolgede(o.bolge, o.x, o.z) && Math.hypot(ux - yx, uz - yz) < 0.35) return { hx: 0, hz: 0, eylem: true };
+      // Çatal ucu boş yere gelecek şekilde, yere doğru yaklaş
+      const dx = yx - o.x, dz = yz - o.z, L = Math.hypot(dx, dz) || 1;
+      return git(yx - dx / L * CATAL, yz - dz / L * CATAL, L < 2.2);
     }
     // Hedef kutu: yerde, kendi bölgesinde olmayan; ortadakiler ya da (hırslıysa) rakip bölgesindekiler
     if (hafiza.hedef === undefined || !d.kutular.some(k => k.id === hafiza.hedef && k.tasiyan === null && kutuBolgesi(d, k) !== o.bolge) || d.t > hafiza.yenile) {
