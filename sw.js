@@ -4,10 +4,10 @@
 // yoksa kaydedilmiş kopya açılır. Oyunu güncelleyip yüklerken ONBELLEK numarasını 1 artır.
 // =============================================================
 
-const ONBELLEK = 'robo-turnuva-v13';
+const ONBELLEK = 'robo-turnuva-v15';
 const DOSYALAR = [
   './', 'index.html', 'style.css', 'ses.js', 'cekirdek.js', 'kontrol.js', 'ag.js', 'salon.js',
-  'oyunlar/lazer-motor.js', 'oyunlar/lazer.js', 'oyunlar/kursun-motor.js', 'oyunlar/kursun.js', 'oyunlar/zaman.js',
+  'oyunlar/lazer-motor.js', 'oyunlar/lazer.js', 'oyunlar/kursun-motor.js', 'oyunlar/kursun.js', 'oyunlar/zaman.js', 'oyunlar/bezelye.js',
   'manifest.webmanifest', 'ikonlar/ikon-192.png', 'ikonlar/ikon-512.png',
 ];
 

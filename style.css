@@ -278,3 +278,24 @@ body.dokunmatik #ipucu { display: none !important; }
 .oyunAyar span { margin-right: 4px; font-weight: 600; }
 .oyunAyar button { padding: 6px 0; min-width: 36px; font-size: 14px; background: rgba(255, 255, 255, 0.08); box-shadow: none; }
 .oyunAyar button.secili { background: linear-gradient(135deg, #2bb8e6, #7b4dff); }
+
+/* ---------- Bezelye Sofrası ---------- */
+#bzDugmeler { display: none; }
+body.dokunmatik #bzDugmeler {
+  display: flex; position: fixed; left: 0; right: 0; bottom: calc(60px + env(safe-area-inset-bottom)); z-index: 4;
+  justify-content: space-between; padding: 0 16px; pointer-events: none;
+}
+#bzDugmeler button {
+  pointer-events: auto; width: min(40vw, 170px); padding: 18px 0; font-size: 20px; border-radius: 20px; touch-action: manipulation;
+  font-family: 'Orbitron', sans-serif;
+}
+#bzDugmeler button[data-e="ye"] { background: linear-gradient(135deg, #7dff4a, #1aa64a); box-shadow: 0 4px 20px rgba(125, 255, 74, 0.4); color: #06240f; }
+
+/* Genel puan tablosu */
+#genelTablo { text-align: left; }
+.tablo { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tablo th { color: var(--soluk); font-size: 12px; font-weight: 600; text-align: left; padding: 4px 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.12); }
+.tablo td { padding: 5px 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+.tablo td:nth-child(n+3), .tablo th:nth-child(n+3) { text-align: center; }
+.tablo td b { color: #ffd23b; }
+#tabloSifirBtn { margin-top: 8px; padding: 7px 12px; font-size: 13px; }

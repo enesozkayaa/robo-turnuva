@@ -126,10 +126,12 @@ const Ag = (() => {
   function lobiyiYay() {
     if (ag.mod !== 'ev') return;
     ag.bot = Math.min(ag.bot, EN_COK - lobiListesi().length);
-    const veri = { oyuncular: lobiListesi(), bot: ag.bot, oyunda: ag.oyunda, kod: ag.kod, ev: true };
+    const veri = { oyuncular: lobiListesi(), bot: ag.bot, oyunda: ag.oyunda, kod: ag.kod, ev: true, tablo: ag.tablo };
     misafirler().forEach(p => gonder(p.misafir, { tip: 'lobi', ...veri, ev: false }));
     olay('lobi', veri);
   }
+  // Genel puan tablosu (oda sahibinin tablosu herkese gösterilir)
+  function tabloAyarla(t) { ag.tablo = t; lobiyiYay(); }
   function botAyarla(n) { ag.bot = Math.max(0, Math.min(EN_COK - lobiListesi().length, n)); lobiyiYay(); }
 
   // Ev oyunu başlatır: oyuncular = [{ id, ad, renk, bot }] (insanlar önce). Her misafire kendi id'si gider.
@@ -204,7 +206,7 @@ const Ag = (() => {
   }
 
   return {
-    odaKur, katil, kapat, botAyarla, oyunuBaslat, insanlar, salonaDon, herkese, evaGonder, EN_COK,
+    odaKur, katil, kapat, botAyarla, tabloAyarla, oyunuBaslat, insanlar, salonaDon, herkese, evaGonder, EN_COK,
     set olay(fn) { olay = fn; },
     get mod() { return ag.mod; }, get kod() { return ag.kod; }, get bot() { return ag.bot; }, get oyunda() { return ag.oyunda; },
     get kisiSayisi() { return ag.mod === 'ev' ? lobiListesi().length : oyuncular.length; },

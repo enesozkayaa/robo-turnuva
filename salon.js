@@ -89,11 +89,12 @@ const Salon = (() => {
       Ag.katil(ad, kod);
     });
     $('odaKodu').addEventListener('keydown', e => { if (e.key === 'Enter') $('katilBtn').click(); });
-    $('odadanCikBtn').addEventListener('click', () => { Ag.kapat(); lobi = null; onlineCiz(); menuCiz(); });
+    $('odadanCikBtn').addEventListener('click', () => { Ag.kapat(); lobi = null; onlineCiz(); menuCiz(); tabloCiz(); });
     Ag.olay = agOlayi;
 
     menuCiz();
     onlineCiz();
+    tabloCiz();
     vitrin();
     // Kısayol: adres sonuna #oyna=kursun yazılırsa o oyun doğrudan açılır
     const kisayol = location.hash.match(/oyna=(\w+)/);
@@ -147,12 +148,13 @@ const Salon = (() => {
   function agOlayi(tip, veri) {
     if (tip === 'durum') { $('onlineDurum').textContent = veri; return; }
     if (tip === 'hata') { $('onlineDurum').textContent = '❌ ' + veri; lobi = null; onlineCiz(); menuCiz(); return; }
-    if (tip === 'lobi') { lobi = veri; $('onlineDurum').textContent = ''; onlineCiz(); menuCiz(); return; }
+    if (tip === 'lobi' && Ag.mod === 'ev' && veri.tablo !== tablo) { Ag.tabloAyarla(tablo); return; }
+    if (tip === 'lobi') { lobi = veri; if (Ag.mod === 'misafir') gorunenTablo = veri.tablo || {}; $('onlineDurum').textContent = ''; onlineCiz(); menuCiz(); tabloCiz(); return; }
     if (tip === 'kapandi') {
       lobi = null;
       if (calisan) salonaDon();
       $('onlineDurum').textContent = '📴 ' + veri;
-      onlineCiz(); menuCiz();
+      onlineCiz(); menuCiz(); tabloCiz();
       return;
     }
     if (tip === 'basla') { oyunuAc(veri.oyun, veri.oyuncular, veri.benId, 'misafir', veri.ayar || {}); return; }
@@ -261,6 +263,7 @@ const Salon = (() => {
 
   function oyunBitti(oyuncular, benId, { kazanan, siralama, aciklama }) {
     Kontrol.ac(false);
+    tabloyaEkle(oyuncular, siralama);
     const kazandim = kazanan === benId;
     if (kazandim) Ses.kazanma(); else Ses.kaybetme();
     const k = oyuncular.find(o => o.id === kazanan);
@@ -290,6 +293,49 @@ const Salon = (() => {
     Cekirdek.kameraAyarla(10, 1.0);
     vitrin();
     onlineCiz(); menuCiz();
+  }
+
+  // ---------- Genel puan tablosu (bütün mini oyunlar) ----------
+  // Her oyunda sıraya göre puan: 1. → 3, 2. → 2, 3. → 1, 4. → 0. Robotlar tek satırda ("🤖 Robotlar": en iyi robotun puanı).
+  // Tabloyu tek başına oynarken bu cihaz, online'da oda sahibi tutar (misafirler onunkini görür).
+  const TABLO_ANAHTAR = 'roboTurnuva.tablo', SIRA_PUANI = [3, 2, 1, 0], ROBOTLAR = '🤖 Robotlar';
+  let tablo = {};
+  try { tablo = JSON.parse(localStorage.getItem(TABLO_ANAHTAR) || '{}') || {}; } catch (e) { tablo = {}; }
+  let gorunenTablo = null;   // misafirde oda sahibinin tablosu
+  function tabloKaydet() { try { localStorage.setItem(TABLO_ANAHTAR, JSON.stringify(tablo)); } catch (e) { /* */ } }
+  function tabloyaEkle(oyuncular, siralama) {
+    if (Ag.mod === 'misafir' || !siralama?.length) return;
+    let robotPuani = null, robotBirinci = false;
+    siralama.forEach((s, i) => {
+      const o = oyuncular.find(p => p.id === s.id);
+      if (!o) return;
+      const puan = SIRA_PUANI[i] ?? 0;
+      if (o.bot) { if (robotPuani === null || puan > robotPuani) robotPuani = puan; if (i === 0) robotBirinci = true; return; }
+      const t = tablo[o.ad] ??= { puan: 0, birinci: 0, oyun: 0 };
+      t.puan += puan; t.oyun++; if (i === 0) t.birinci++;
+    });
+    if (robotPuani !== null) {
+      const t = tablo[ROBOTLAR] ??= { puan: 0, birinci: 0, oyun: 0 };
+      t.puan += robotPuani; t.oyun++; if (robotBirinci) t.birinci++;
+    }
+    tabloKaydet();
+    if (Ag.mod === 'ev') Ag.tabloAyarla(tablo);
+    tabloCiz();
+  }
+  function tabloCiz() {
+    const t = Ag.mod === 'misafir' ? (gorunenTablo || {}) : tablo;
+    const satirlar = Object.entries(t).sort((a, c) => c[1].puan - a[1].puan || c[1].birinci - a[1].birinci);
+    $('genelTablo').innerHTML = !satirlar.length
+      ? '<p class="not">Henüz oyun oynanmadı. Her oyunda 1. → 3, 2. → 2, 3. → 1 puan.</p>'
+      : `<table class="tablo"><tr><th></th><th>Oyuncu</th><th>Oyun</th><th>🥇</th><th>Puan</th></tr>${satirlar.map(([ad, v], i) =>
+          `<tr><td>${['🥇', '🥈', '🥉'][i] || i + 1}</td><td>${ad.replace(/</g, '&lt;')}</td><td>${v.oyun}</td><td>${v.birinci}</td><td><b>${v.puan}</b></td></tr>`).join('')}</table>
+        ${Ag.mod === 'misafir' ? '<p class="not">Oda sahibinin tablosu</p>' : '<button id="tabloSifirBtn" class="ikinci">🗑️ Tabloyu sıfırla</button>'}`;
+    $('tabloSifirBtn')?.addEventListener('click', () => {
+      if (!confirm('Genel puan tablosu silinsin mi?')) return;
+      tablo = {}; tabloKaydet();
+      if (Ag.mod === 'ev') Ag.tabloAyarla(tablo);
+      tabloCiz();
+    });
   }
 
   // ---------- Ekran bilgileri (mini oyunlar kullanır) ----------
