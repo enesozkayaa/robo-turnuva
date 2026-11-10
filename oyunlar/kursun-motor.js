@@ -15,12 +15,15 @@ const KursunMotor = (() => {
   const CAN = 3, KORUMA = 1.2;                         // vurulunca kısa süre dokunulmaz
   const BASLANGIC = 3;                                 // "hazır" geri sayımı (sn)
 
-  // Kurşun hızı: yavaş başlar, her 5 saniyede bir 1,6 katına çıkar (en fazla EN_HIZLI)
-  const HIZLANMA_SN = 5, HIZLANMA_KAT = 1.6, ILK_HIZ = 3.2, EN_HIZLI = 22;
-  const hizBasamagi = t => Math.max(0, Math.floor(t / HIZLANMA_SN));
-  const kursunHizi = t => Math.min(EN_HIZLI, ILK_HIZ * Math.pow(HIZLANMA_KAT, hizBasamagi(t)));
-  const atesAraligi = t => Math.max(0.7, 1.15 - t * 0.006);
-  const hizKati = t => kursunHizi(t) / kursunHizi(0);
+  // Kurşun hızı hep aynı. Değişen atış sıklığı: her 5 saniyede silahlar daha sık ateş eder,
+  // sonunda kurşunlar peş peşe, durmadan çıkar.
+  const KURSUN_HIZI = 5;
+  const SIKLASMA_SN = 5, SIKLASMA_KAT = 0.6, ILK_ARALIK = 1.15, EN_KISA_ARALIK = 0.12;
+  const hizBasamagi = t => Math.max(0, Math.floor(t / SIKLASMA_SN));
+  const kursunHizi = () => KURSUN_HIZI;
+  const atesAraligi = t => Math.max(EN_KISA_ARALIK, ILK_ARALIK * Math.pow(SIKLASMA_KAT, hizBasamagi(t)));
+  const sonBasamakMi = t => atesAraligi(t) <= EN_KISA_ARALIK;
+  const hizKati = t => ILK_ARALIK / atesAraligi(t);   // atış sıklığı katı
 
   const KOSELER = [[-8, -4.8], [8, 4.8], [8, -4.8], [-8, 4.8]];
   function yeni(oyuncular) {
@@ -169,7 +172,7 @@ const KursunMotor = (() => {
     return { hx: dx / L * 0.8, hz: dz / L * 0.8, a };
   }
 
-  return { ODA, KOLON_R, KOLONLAR, ROBOT_R, KURSUN_R, HIZ, CAN, BASLANGIC, kursunHizi, atesAraligi, hizKati, hizBasamagi, yeni, adim, botGirdi, canlilar };
+  return { ODA, KOLON_R, KOLONLAR, ROBOT_R, KURSUN_R, HIZ, CAN, BASLANGIC, kursunHizi, atesAraligi, hizKati, hizBasamagi, sonBasamakMi, yeni, adim, botGirdi, canlilar };
 })();
 
 if (typeof module !== 'undefined') module.exports = KursunMotor;

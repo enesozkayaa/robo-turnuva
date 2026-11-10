@@ -64,11 +64,17 @@
   }
 
   // Ağır çekim kurşun: parlak çekirdek + renkli hale (arkasında iz yok)
+  // Kurşunlar çok olunca telefon kasmasın: şekil ve renkler bir kez yapılır, hepsi paylaşır
+  let kursunGeo = null, kursunMal = null;
+  const haleMal = new Map();
   function kursunYap(renk) {
+    kursunGeo ??= new THREE.CapsuleGeometry(0.12, 0.4, 4, 10);
+    kursunMal ??= new THREE.MeshBasicMaterial({ color: 0xffffff });
+    if (!haleMal.has(renk)) haleMal.set(renk, new THREE.SpriteMaterial({ map: Cekirdek.parlamaDokusu(), color: renk, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
     const g = new THREE.Group();
-    const cekirdek = new THREE.Mesh(new THREE.CapsuleGeometry(0.12, 0.4, 4, 12), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    const cekirdek = new THREE.Mesh(kursunGeo, kursunMal);
     cekirdek.rotation.z = Math.PI / 2;   // +x yönünde uzun
-    const hale = new THREE.Sprite(new THREE.SpriteMaterial({ map: Cekirdek.parlamaDokusu(), color: renk, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+    const hale = new THREE.Sprite(haleMal.get(renk));
     hale.scale.set(1.5, 1.5, 1);
     g.add(cekirdek, hale);
     return g;
@@ -97,11 +103,11 @@
     id: 'kursun',
     ad: 'Ağır Çekim',
     ikon: '⏳',
-    ozet: 'Kurşunlar ağır çekimde geliyor ama gittikçe hızlanıyor. Kaç, saklan, son kalan sen ol!',
+    ozet: 'Kurşunlar ağır çekimde geliyor ama atışlar gittikçe sıklaşıyor. Kaç, saklan, son kalan sen ol!',
     kurallar: [
       'Kolonlu bir odadasınız. Herkesin silahı <b>kendiliğinden</b> ateş eder; sen yürür ve nişan alırsın.',
       'Kurşunlar <b>ağır çekimde</b> gelir: gördüğün kurşundan kenara çekil ya da kolonun arkasına saklan. Kurşun kolonda ve duvarda durur.',
-      'Her <b>5 saniyede</b> bir kurşunlar <b>1,6 kat hızlanır</b> (üstte hızı görürsün). Yerdeki kurşunlar da hızlanır!',
+      'Kurşunların hızı hep aynı ama her <b>5 saniyede</b> silahlar <b>daha sık</b> ateş eder. Sonunda kurşunlar <b>peş peşe, durmadan</b> çıkar!',
       'Herkesin <b>3 canı</b> var. Vurulunca 1 can gider ve kısa süre yanıp sönersin (o sırada kurşun işlemez). Canı biten elenir.',
       'Bilgisayar: <b>WASD / ok tuşları</b> yürü, <b>fare</b> nişan. Telefon: <b>sol</b> joystick yürü, <b>sağ</b> joystick nişan.',
       'Ayakta kalan son robot kazanır.',
@@ -135,7 +141,7 @@
       b.hud.oyuncular(d.oyuncular.map(o => ({ ...o, ben: o.id === b.benId, ek: kalpler(o.can) })));
     }
     hudOyuncular();
-    b.hud.bilgi('Kurşunlar ağır çekimde gelir, gittikçe hızlanır. Kaç ve saklan!');
+    b.hud.bilgi('Kurşunlar ağır çekimde gelir, atışlar gittikçe sıklaşır. Kaç ve saklan!');
     b.hud.ipucu(Kontrol.dokunmatik ? '' : 'WASD / oklar: yürü · Fare: nişan');
 
     function olayIsle(ol) {
@@ -205,10 +211,10 @@
           if (bas !== sonBasamak) {
             sonBasamak = bas;
             Ses.uyari();
-            b.hud.bilgi(`⚡ KURŞUNLAR HIZLANDI! x${M.hizKati(d.t).toFixed(1)}`, true);
+            b.hud.bilgi(M.sonBasamakMi(d.t) ? '🔥 ARTIK DURMADAN ATEŞ EDİYORLAR!' : `⚡ ATIŞLAR SIKLAŞTI! x${M.hizKati(d.t).toFixed(1)}`, true);
           }
           const s = Math.floor(d.t);
-          b.hud.buyuk(`⏱ ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}  ·  Kurşun hızı x${M.hizKati(d.t).toFixed(1)}`, '', '', false);
+          b.hud.buyuk(`⏱ ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}  ·  Atış sıklığı x${M.hizKati(d.t).toFixed(1)}`, '', '', false);
         }
       }
 
@@ -232,8 +238,7 @@
       });
       KURSUN.forEach((n, no) => {
         if (var_.has(no)) return;
-        grup.remove(n);
-        n.traverse(x => { x.geometry?.dispose(); x.material?.dispose(); });
+        grup.remove(n);   // şekil/renk paylaşılıyor, silinmez
         KURSUN.delete(no);
       });
     });
