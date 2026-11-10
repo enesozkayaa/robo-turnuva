@@ -15,6 +15,7 @@
   const M = EvMotor;
   const ADIM = 1 / 60, YAYIN_SN = 0.05, DUVAR_H = 1.3;
   const MASKE_Y = 1.85;   // perde en uzun eşyadan (kitaplık 1.6) yüksekte olsun
+  const PENCERE = 2.6;    // benim etrafımda görünen karenin yarı kenarı
   const ODA_RENK = [0x3b3150, 0x2f3d52, 0x3f3a2c, 0x2c4238, 0x47303a];
   const ESYA_RENK = { dolap: [0x7a4a2a, 0x5d3a22], masa: [0xa0703a, 0x8a6030], sandik: [0x8a5a2a, 0x6b4520], yatak: [0x4a6aa8, 0x6a4a98], kitaplik: [0x5a3a20, 0x4a2e18] };
 
@@ -80,7 +81,7 @@
     ozet: 'Silahı bulan avcı olur, ışıklar söner. Fenerle saklan, avcıya yakalanma!',
     kurallar: [
       'Kuş bakışı bir evdesiniz: odalar, kapılar, dolaplar, masalar. Herkes ortadaki salondan başlar.',
-      'Sen ekranın ortasındasın, kamera seninle gezer; sadece bulunduğun <b>oda</b> görünür. Odalardan birinde <b>lazer silahı</b> saklı: ara! İlk bulan <b>avcı</b> olur ve <b>ışıklar söner</b> (30 saniye).',
+      'Sen ekranın ortasındasın; sadece <b>etrafındaki kare alan</b> görünür ve seninle birlikte kayar. Odalardan birinde <b>lazer silahı</b> saklı: ara! İlk bulan <b>avcı</b> olur ve <b>ışıklar söner</b> (30 saniye).',
       'Karanlıkta herkesin <b>feneri</b> var (aç/kapa). Fener yakını gösterir ama feneri açık olanı uzaktan herkes görür! Avcının feneri çok sönüktür.',
       'Avcı <b>lazerle</b> ateş eder: lazer duvar ve eşyadan geçmez, kapılardan geçer. Bir eşyanın arkasına saklan!',
       'Sonra <b>ışıklar açılır</b> (10 saniye): kaç, avcı da kovalar.',
@@ -375,25 +376,10 @@
       // Kamera ve maske: sadece bulunduğum oda görünür (elenince bütün ev)
       const h = d.harita;
       let hedefKutu;
-      const odaCerceve = id => { const k = h.odaKutu[id]; return { x1: k.x1 - 0.12, z1: k.z1 - 0.12, x2: k.x2 + 0.12, z2: k.z2 + 0.12 }; };
-      if (ben.canli) {
-        hedefKutu = odaCerceve(M.odaBul(h, ben.x, ben.z));
-        // Kapıdan geçerken çerçeve benimle kayar: kapının neresindeysem iki odanın o kadarı görünür
-        for (const [kx, kz] of h.kapilar) {
-          if (Math.hypot(ben.x - kx, ben.z - kz) > 1.3) continue;
-          const dikey = M.odaBul(h, kx - 0.5, kz) !== M.odaBul(h, kx + 0.5, kz);   // kapı x yönünde mi geçiliyor
-          const [nx, nz] = dikey ? [1, 0] : [0, 1];
-          const A = M.odaBul(h, kx - nx * 0.5, kz - nz * 0.5), B = M.odaBul(h, kx + nx * 0.5, kz + nz * 0.5);
-          if (A === B) continue;
-          const t = Math.max(0, Math.min(1, ((ben.x - kx) * nx + (ben.z - kz) * nz) / 1.6 + 0.5));
-          const a = odaCerceve(A), c = odaCerceve(B);
-          hedefKutu = { x1: a.x1 + (c.x1 - a.x1) * t, z1: a.z1 + (c.z1 - a.z1) * t, x2: a.x2 + (c.x2 - a.x2) * t, z2: a.z2 + (c.z2 - a.z2) * t };
-          break;
-        }
-      } else hedefKutu = { x1: -60, z1: -60, x2: 60, z2: 60 };
-      if (!kam) kam = { ...hedefKutu };
-      const yumus = Math.min(1, dt * 12);
-      ['x1', 'z1', 'x2', 'z2'].forEach(k => { kam[k] += (hedefKutu[k] - kam[k]) * yumus; });
+      // Görünen pencere: beni ortalayan kare, ben yürüdükçe aynı anda benimle kayar (elenince bütün ev)
+      if (ben.canli) hedefKutu = { x1: ben.x - PENCERE, z1: ben.z - PENCERE, x2: ben.x + PENCERE, z2: ben.z + PENCERE };
+      else hedefKutu = { x1: -60, z1: -60, x2: 60, z2: 60 };
+      kam = { ...hedefKutu };
       const genis = 80;
       const [mSol, mSag, mUst, mAlt] = maske;
       mSol.scale.set(genis, genis * 2, 1); mSol.position.set(kam.x1 - genis / 2, MASKE_Y, (kam.z1 + kam.z2) / 2);
@@ -404,7 +390,7 @@
         // Kamera beni takip eder: ben ekranın ortasında dururum, oda etrafımda kayar
         Cekirdek.kameraOdak(ben.x, ben.z, 3.4, 1.38);
       } else Cekirdek.kameraOdak(0, 0, M.YARI + 0.8, 1.45);
-      const benimOda = ben.canli ? M.odaBul(h, ben.x, ben.z) : null;
+      const pencerede = o => !ben.canli || (Math.abs(o.x - ben.x) < PENCERE + 0.2 && Math.abs(o.z - ben.z) < PENCERE + 0.2);
 
       // Robotlar, fenerler ve görünürlük (karanlıkta sadece aydınlanan görünür)
       const izleyen = ben.canli ? ben : null;
@@ -421,7 +407,7 @@
         x.isik.position.set(o.x + Math.cos(o.a) * 0.2, 0.75, o.z + Math.sin(o.a) * 0.2);
         x.hedef.position.set(o.x + Math.cos(o.a) * 2, 0, o.z + Math.sin(o.a) * 2);
         // Yerdeki huni: duvara/eşyaya çarpınca orada biter
-        const gorunurHuni = fenerAcik && (o.id === b.benId || !izleyen || M.odaBul(h, o.x, o.z) === benimOda);
+        const gorunurHuni = fenerAcik && (o.id === b.benId || pencerede(o));
         x.huni.visible = gorunurHuni;
         if (gorunurHuni) {
           if (x.huniAci !== f.aci) { x.huniAci = f.aci; x.huniMesh.geometry.dispose(); x.huniMesh.geometry = new THREE.CircleGeometry(1, 32, -f.aci, f.aci * 2); }
@@ -431,8 +417,7 @@
           x.huni.scale.set(uzun, 1, uzun);
           x.huniMesh.material.opacity = avci ? 0.3 : 0.55;
         }
-        const ayniOda = benimOda === null || M.odaBul(h, o.x, o.z) === benimOda;
-        const gorunsun = !izleyen || (ayniOda && (d.isikAcik || M.gorunur(d, izleyen, o)));
+        const gorunsun = !izleyen || (pencerede(o) && (d.isikAcik || M.gorunur(d, izleyen, o)));
         x.r.goster(gorunsun);
         x.r.etiket.visible = d.isikAcik || o.id === b.benId;
       });

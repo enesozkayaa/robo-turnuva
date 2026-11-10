@@ -15,6 +15,7 @@
 const EvMotor = (() => {
   const N = 5, C = 4.2, YARI = (N * C) / 2;          // oda ızgarası, oda boyu
   const DUVAR = 0.22, KAPI = 1.35;
+  const ARKA_BOSLUK = 0.9;           // duvara yakın eşyanın arkasında kalan boşluk (robot sığar)
   const ROBOT_R = 0.34, HIZ = 3.9;
   const SURE = { baslangic: 3, arama: 40, karanlik: 30, aydinlik: 10, son: 3.5 };
   // Fener: huni şeklinde önünü gösterir (aci = huninin yarı açısı). Avcınınki kısa.
@@ -117,15 +118,15 @@ const EvMotor = (() => {
         const e = ESYA[Math.floor(rnd() * ESYA.length)];
         const don = rnd() < 0.5;
         const w = don ? e.d : e.w, dd = don ? e.w : e.d;
-        // Eşyalar çoğunlukla duvara yaslı dursun
+        // Eşyalar duvara yakın ama arkasına bir robot sığacak kadar boşluk bırakarak durur (saklanma yeri)
         const kenara = rnd() < 0.7;
         let x = cx + (rnd() - 0.5) * (C - w - 0.9), z = cz + (rnd() - 0.5) * (C - dd - 0.9);
         if (kenara) {
-          const yan = Math.floor(rnd() * 4), ic = C / 2 - DUVAR / 2 - 0.05;
+          const yan = Math.floor(rnd() * 4), ic = C / 2 - DUVAR / 2 - ARKA_BOSLUK;
           if (yan === 0) x = cx - ic + w / 2; else if (yan === 1) x = cx + ic - w / 2; else if (yan === 2) z = cz - ic + dd / 2; else z = cz + ic - dd / 2;
         }
         const k = { x1: x - w / 2, z1: z - dd / 2, x2: x + w / 2, z2: z + dd / 2, tip: e.tip, h: e.h, renk: Math.floor(rnd() * 4) };
-        if (kutular.some(b => b.tip !== 'duvar' && cakisir(k, b, 0.8))) continue;
+        if (kutular.some(b => b.tip !== 'duvar' && cakisir(k, b, 0.95))) continue;
         if (kutular.some(b => b.tip === 'duvar' && cakisir(k, b, -0.02))) continue;
         if (kapilar.some(([px, pz]) => Math.hypot(px - x, pz - z) < 1.4 + Math.max(w, dd) / 2)) continue;
         kutular.push(k); n++;
