@@ -11,7 +11,7 @@ const KursunMotor = (() => {
   const KOLON_R = 0.7;
   const KOLONLAR = [[-5, -2.6], [0, -3.4], [5, -2.6], [-5, 2.6], [0, 3.4], [5, 2.6], [-1.8, 0], [1.8, 0]];
   // Her KOLON_SN saniyede bir kolon yere iner (önce KOLON_UYARI sn kırmızı yanıp söner); en sonda oda boş kalır
-  const KOLON_SN = 20, KOLON_UYARI = 2;
+  const KOLON_SN = 8, KOLON_UYARI = 2;
   const ROBOT_R = 0.45, KURSUN_R = 0.16;
   const HIZ = 3.6;                                     // robot yürüme hızı
   const CAN = 3, KORUMA = 1.2;                         // vurulunca kısa süre dokunulmaz
