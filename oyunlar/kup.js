@@ -122,7 +122,7 @@
     benim.g.position.y = MERKEZ_Y;
     benim.g.visible = false;
     grup.add(ornek.g, benim.g);
-    let donus = -0.55, hedefDonus = -0.55;   // küpün y ekseninde dönüşü (üç yüz görünsün)
+    let donus = -0.55, hedefDonus = -0.55, miniKupler = [];   // küpün y ekseninde dönüşü (üç yüz görünsün)
 
     // ---------- Durum ----------
     let faz = 'bekle', fazBitis = 0, turNo = 0, hedef = [], benimEksik = [], bitirdim = false, durdu = false, sonSn = null;
@@ -193,6 +193,7 @@
     // ---------- Herkeste: tur akışı ----------
     function turGeldi(m) {
       turNo = m.no; hedef = m.eksik; benimEksik = []; bitirdim = false; gecmis.length = 0;
+      miniKupler.forEach(k => grup.remove(k.g)); miniKupler = [];
       faz = 'goster';
       hedefDonus = -0.55;
       ornek.g.visible = true; benim.g.visible = false;
@@ -242,32 +243,91 @@
       ornek.g.visible = true; ornek.ciz(m.hedef);
       benim.g.visible = false;
       const benYanlis = m.olen.includes(b.benId) || (m.yanlis || []).includes(b.benId);
-      b.hud.bilgi(m.hepsiYanlis ? '😅 Herkes yanıldı! Kimse ölmedi, tur tekrar.' : m.olen.length ? (benYanlis ? '💥 Küpün yanlıştı!' : `🎯 Doğru! Yanlış yapanlar: ${m.olen.map(id => oyuncular.find(o => o.id === id).ad).join(', ')}`) : '🎉 Herkes doğru yaptı!', benYanlis);
-      if (m.dogru.includes(b.benId)) Ses.kazanma();
-      // Taret iner ve yanlış yapanları sırayla vurur
+      b.hud.bilgi(m.hepsiYanlis ? '😅 Herkes yanıldı! Kimse ölmeyecek, tur tekrar.' : '🎯 Taret küpleri tek tek kontrol ediyor…');
+      void benYanlis;
+      // Herkesin yaptığı küp, kendi robotunun üstünde küçük olarak görünür (taret tararken bakılabilir)
+      miniKupler.forEach(k => grup.remove(k.g)); miniKupler = [];
+      Object.entries(m.cevaplar || {}).forEach(([id, eksik]) => {
+        const o = oyuncular.find(p => p.id === +id), h = R[+id];
+        if (!o || !h) return;
+        const mk = kupGrubu(new THREE.Color(o.renk).getHex());
+        mk.g.scale.setScalar(0.42);
+        mk.g.position.set(h.x * 0.82, 2.9, h.z * 0.82);
+        mk.ciz(eksik, true);
+        grup.add(mk.g);
+        miniKupler.push(mk);
+      });
+      // Taret iner, herkese sırayla bakar: 2 sn tarar → doğruysa yeşil ışık, yanlışsa kırmızı ışık ve ateş
       Cekirdek.animasyon(0.8, t => { taret.position.y = 12 - t * 7.5; });
-      m.olen.forEach((id, k) => setTimeout(() => {
-        if (durdu) return;
-        const h = R[id];
-        taret.rotation.y = -Math.atan2(h.z, h.x);
-        // Taretin namlusundan robota çapraz inen lazer
-        const a3 = new THREE.Vector3(Math.cos(Math.atan2(h.z, h.x)) * 1.15, taret.position.y - 0.2, Math.sin(Math.atan2(h.z, h.x)) * 1.15);
+      const kontrol = [...m.dogru, ...(m.yanlis || [])].map(id => ({ id, h: R[id], dogru: m.dogru.includes(id), olecek: m.olen.includes(id) }))
+        .sort((a, c) => Math.atan2(a.h.z, a.h.x) - Math.atan2(c.h.z, c.h.x));
+      const isinYap3 = (h, renk, kalin) => {
+        const yon = Math.atan2(h.z, h.x);
+        const a3 = new THREE.Vector3(Math.cos(yon) * 1.15, taret.position.y - 0.2, Math.sin(yon) * 1.15);
         const b3 = new THREE.Vector3(h.x, 0.9, h.z);
         const L = a3.distanceTo(b3);
-        const isinG = { grup: new THREE.Group() };
-        const ic = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, L, 8), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true }));
-        const dis = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, L, 10), new THREE.MeshBasicMaterial({ color: 0xff2040, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }));
-        isinG.grup.add(ic, dis);
-        isinG.grup.position.copy(a3).lerp(b3, 0.5);
-        isinG.grup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b3.clone().sub(a3).normalize());
-        isinG.opaklik = o => { ic.material.opacity = o; dis.material.opacity = 0.5 * o; };
-        grup.add(isinG.grup);
-        Ses.lazer();
-        setTimeout(() => { Cekirdek.patlama(h.x, 0.9, h.z, oyuncular.find(o => o.id === id).renk); Ses.patlama(); h.r.goster(false); if (id === b.benId) b.hud.perde('flas'); }, 150);
-        Cekirdek.animasyon(0.5, t => isinG.opaklik(1 - t)).then(() => grup.remove(isinG.grup));
-      }, 900 + k * 600));
+        const g = new THREE.Group();
+        const ic = new THREE.Mesh(new THREE.CylinderGeometry(kalin * 0.3, kalin * 0.3, L, 8), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true }));
+        const dis = new THREE.Mesh(new THREE.CylinderGeometry(kalin, kalin * 1.6, L, 12, 1, true), new THREE.MeshBasicMaterial({ color: renk, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+        g.add(ic, dis);
+        g.position.copy(a3).lerp(b3, 0.5);
+        g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b3.clone().sub(a3).normalize());
+        grup.add(g);
+        return { g, ic, dis, renk: c => { dis.material.color.set(c); }, opaklik: o => { ic.material.opacity = o; dis.material.opacity = 0.45 * o; } };
+      };
+      const ADIM_SN = 2.7;
+      kontrol.forEach((k, sira) => {
+        const bas = 900 + sira * ADIM_SN * 1000;
+        // Dön ve taramaya başla (beyaz)
+        setTimeout(() => {
+          if (durdu) return;
+          const hedefA = -Math.atan2(k.h.z, k.h.x);
+          const ilkA = taret.rotation.y;
+          let fark = hedefA - ilkA; fark = Math.atan2(Math.sin(fark), Math.cos(fark));
+          Cekirdek.animasyon(0.35, t => { taret.rotation.y = ilkA + fark * t; });
+          goz.material.color.set(0xffffff);
+          Ses.uyari();
+          const tarama = isinYap3(k.h, 0xffffff, 0.06);
+          k.tarama = tarama;
+          const bitis = Cekirdek.animasyon(2, t => tarama.opaklik(0.35 + 0.35 * Math.abs(Math.sin(t * 14))));
+          void bitis;
+        }, bas);
+        // 2 saniye sonra karar
+        setTimeout(() => {
+          if (durdu) return;
+          if (k.tarama) grup.remove(k.tarama.g);
+          if (k.dogru) {
+            goz.material.color.set(0x3dff6a);
+            const yesil = isinYap3(k.h, 0x3dff6a, 0.14);
+            Ses.din(true);
+            k.h.ped.material.emissiveIntensity = 1.2;
+            Cekirdek.animasyon(0.6, t => yesil.opaklik(1 - t)).then(() => grup.remove(yesil.g));
+            if (k.id === b.benId) b.hud.bilgi('✅ Taret: DOĞRU!');
+          } else {
+            goz.material.color.set(0xff2030);
+            const kirmizi = isinYap3(k.h, 0xff2030, 0.14);
+            Ses.uyari();
+            if (k.id === b.benId) b.hud.bilgi(k.olecek ? '🔴 Taret: YANLIŞ!' : '🔴 Yanlış ama herkes yanıldı, kurtuldun.', true);
+            Cekirdek.animasyon(0.4, t => kirmizi.opaklik(1 - t * 0.5)).then(() => {
+              grup.remove(kirmizi.g);
+              if (durdu || !k.olecek) return;
+              // Ateş!
+              const lazer = isinYap3(k.h, 0xff2040, 0.11);
+              Ses.lazer();
+              setTimeout(() => { if (durdu) return; Cekirdek.patlama(k.h.x, 0.9, k.h.z, oyuncular.find(o => o.id === k.id).renk); Ses.patlama(); k.h.r.goster(false); if (k.id === b.benId) b.hud.perde('flas'); hudOyuncular(); }, 150);
+              Cekirdek.animasyon(0.5, t => lazer.opaklik(1 - t)).then(() => grup.remove(lazer.g));
+            });
+          }
+        }, bas + 2000);
+      });
       m.olen.forEach(id => { oyuncular.find(o => o.id === id).canli = false; });
-      setTimeout(() => { if (!durdu) { hudOyuncular(); Cekirdek.animasyon(0.8, t => { taret.position.y = 4.5 + t * 7.5; }); } }, 900 + m.olen.length * 600 + 300);
+      setTimeout(() => {
+        if (durdu) return;
+        hudOyuncular();
+        goz.material.color.set(0xff2030);
+        Object.values(R).forEach(x => { x.ped.material.emissiveIntensity = 0.4; });
+        Cekirdek.animasyon(0.8, t => { taret.position.y = 4.5 + t * 7.5; });
+      }, 900 + kontrol.length * ADIM_SN * 1000 + 500);
     }
 
     kanal.dinle(m => {
@@ -320,7 +380,8 @@
         const hepsiYanlis = dogru.length === 0;
         const olen = hepsiYanlis ? [] : yanlis;
         olen.forEach(id => { const o = oyuncular.find(p => p.id === id); o.olumSira = ++ev.olumSira; o.olumTur = ev.tur; });
-        kanal.yayinla({ t: 'sonuc', dogru, olen, yanlis, hepsiYanlis, hedef: ev.hedef });
+        const cevaplar = Object.fromEntries(canli.map(o => [o.id, ev.cevap[o.id] || []]));
+        kanal.yayinla({ t: 'sonuc', dogru, olen, yanlis, hepsiYanlis, hedef: ev.hedef, cevaplar });
         if (!hepsiYanlis) ev.eksik++;
         const kalan = canli.filter(o => !olen.includes(o.id));
         ev.zaman.push(setTimeout(() => {
@@ -332,7 +393,7 @@
               siralama: sirali.map(o => ({ id: o.id, neden: kalan.includes(o) ? `🏆 ${ev.tur} tur doğru yaptı` : `💥 ${o.olumTur}. turda yanıldı` })),
             });
           } else yeniTur();
-        }, (SONUC_SN + olen.length * 0.6) * 1000));
+        }, (1.4 + canli.length * 2.7 + 1.2) * 1000));   // taret herkesi sırayla tarar (kişi başı 2.7 sn)
       };
       kanal.evDinle((m, id) => {
         if (m.t !== 'cevap' || m.no !== ev.tur || !Array.isArray(m.eksik)) return;
@@ -349,6 +410,7 @@
       if (durdu) return false;
       donus += (hedefDonus - donus) * Math.min(1, dt * 8);
       ornek.g.rotation.y = benim.g.rotation.y = donus;
+      miniKupler.forEach(k => { k.g.rotation.y = donus; });
       ornek.g.position.y = benim.g.position.y = MERKEZ_Y + Math.sin(t * 1.5) * 0.05;
       if (faz === 'goster' && simdi() >= fazBitis) kurBasla();
       if (faz === 'goster' || faz === 'kur') {
