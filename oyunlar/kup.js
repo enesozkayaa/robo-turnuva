@@ -255,8 +255,9 @@
         const o = oyuncular.find(p => p.id === +id), h = R[+id];
         if (!o || !h) return;
         const mk = kupGrubu(new THREE.Color(o.renk).getHex());
-        mk.g.scale.setScalar(0.42);
-        mk.g.position.set(h.x * 0.82, 2.9, h.z * 0.82);
+        // Küçük ve robotun dış yanında yukarıda: soldakiler daha sola, sağdakiler daha sağa (robotu kapatmasın)
+        mk.g.scale.setScalar(0.27);
+        mk.g.position.set(h.x + Math.sign(h.x) * 0.9, 3.15, h.z * 0.9);
         mk.ciz(eksik, true);
         grup.add(mk.g);
         miniKupler.push(mk);
