@@ -244,7 +244,6 @@
     }
     function kurBasla() {
       faz = 'kur'; fazBitis = simdi() + KUR_SN;
-      hedefQ.copy(BAS_Q);
       ornek.g.visible = false;
       benim.g.visible = ben.canli;
       benim.ciz([], true);
