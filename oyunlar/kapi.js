@@ -31,7 +31,7 @@
   // Kabin: yerelde ön yüz z=0, derinlik +z (dışarı), genişlik x
   function kabinYap() {
     const g = new THREE.Group();
-    const govdeMal = new THREE.MeshStandardMaterial({ color: 0x3a4166, metalness: 0.7, roughness: 0.35 });
+    const govdeMal = new THREE.MeshStandardMaterial({ color: 0xf2f5ff, metalness: 0.1, roughness: 0.5, emissive: 0x8a93b0, emissiveIntensity: 0.35 });
     const W = M.W, D = M.D;
     const duvar = (sx, sy, sz, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), govdeMal); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; g.add(m); return m; };
     duvar(0.12, H, D, -W / 2 - 0.06, H / 2, D / 2);
@@ -43,7 +43,7 @@
     ic.rotation.x = -Math.PI / 2; ic.position.set(0, 0.02, D / 2);
     g.add(ic);
     // Kapı (yukarı kayar)
-    const kapiMal = new THREE.MeshStandardMaterial({ color: 0x8a92c2, metalness: 0.8, roughness: 0.25, emissive: 0x000000 });
+    const kapiMal = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.1, roughness: 0.4, emissive: 0x9aa3c0, emissiveIntensity: 0.4 });
     const kapi = new THREE.Mesh(new THREE.BoxGeometry(W, H, 0.08), kapiMal);
     kapi.position.set(0, H / 2, 0);
     kapi.castShadow = true;
@@ -102,7 +102,7 @@
     ozet: 'Kapılar açılınca kabine kaç, uzay aracı gidince hemen çık! Rakibini tuzağa it.',
     kurallar: [
       'Meydanın <b>her tarafında</b> 8 kabin var. Her kabine <b>tek kişi</b> sığar.',
-      '<b>5 saniye</b> bütün kapılar kapalı. Sonra bazı kapılar <b>yeşil</b> yanıp açılır: <b>3 saniye</b> içinde en yakın açık kabine gir!',
+      '<b>5 saniye</b> bütün kapılar kapalı. Sonra bazı kapılar <b>yeşil</b> yanıp açılır: <b>7 saniye</b> içinde en yakın açık kabine gir!',
       'Kapılar kapanır, <b>uzay aracı</b> gelir ve dışarıda kalanları alır.',
       'Sonra kapılar açılır (sarı ışık): <b>2 saniye</b> içinde çık! Çıkmayanın kafasına tavandan <b>tuzak</b> iner.',
       'Çarparak <b>itebilirsin</b>: kapı açıkken rakibini kabine geri it, tuzak onun kafasına insin!',

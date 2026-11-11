@@ -53,6 +53,8 @@
       'Koridorun sonundaki <b>uzay üssüne</b> ilk varan kazanır. Süre bitince varamayan patlar, puan alamaz.',
       'Birbirinizi <b>itebilirsiniz</b>. Şanslıysan taramadan da koşabilirsin…',
       'Bilgisayar: <b>WASD</b>. Telefon: sol joystick ve tarama düğmesi.',
+      'Sürenin <b>yarısı</b> dolunca arkadan yavaşça bir <b>uzay aracı</b> gelir: yetiştiği robotu ezer. Oyalanma!',
+      'Mayınlar oyunun başında yerleşir ve <b>yer değiştirmez</b>; patlayan mayın kalkar.',
     ],
     ayarlar: [{ id: 'sure', ad: 'Süre (sn)', secenekler: [45, 60, 90], varsayilan: 60 }],
     baslat,
@@ -112,6 +114,7 @@
       cizgi(0.6, 0xffffff, 0.2);
       for (let z = -10; z > -M.L; z -= 10) cizgi(z, 0xffd23b, 0.06);
       const us = usYap(); us.position.set(0, 0, M.BITIS_Z - 0.4); grup.add(us);
+      ezen = ezenYap(); ezen.position.set(0, 0, 40); ezen.visible = false; grup.add(ezen);
       // Mayınlar (gizli; taranınca ya da patlayınca görünür)
       const govdeMal = new THREE.MeshStandardMaterial({ color: 0x2a2d3a, metalness: 0.7, roughness: 0.35 });
       MY = d.mayinlar.map(m => {
@@ -150,17 +153,37 @@
       if (ol.id === b.benId) sonTarama = d.t;
       ol.m.forEach(id => gorunur.set(id, saat + GORUNME_SN));
       Ses.belir();
-      const halka = new THREE.Mesh(new THREE.RingGeometry(0.9, 1, 48), new THREE.MeshBasicMaterial({ color: renk, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false }));
+      const halka = new THREE.Mesh(new THREE.RingGeometry(0.95, 1, 48), new THREE.MeshBasicMaterial({ color: renk, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false }));
       halka.rotation.x = -Math.PI / 2; halka.position.set(ol.x, 0.05, ol.z);
       const disk = new THREE.Mesh(new THREE.CircleGeometry(1, 48), new THREE.MeshBasicMaterial({ color: renk, transparent: true, opacity: 0.14, depthWrite: false }));
       disk.rotation.x = -Math.PI / 2; disk.position.set(ol.x, 0.03, ol.z);
       grup.add(halka, disk);
       Cekirdek.animasyon(GORUNME_SN, t => {
         const k = Math.min(1, t * 4);   // ilk çeyrekte yayılır, sonra solar
-        const rr = 0.2 + k * M.TARAMA_R;
+        const rr = 0.05 + k * (M.TARAMA_R - 0.05);   // çember tam tarama alanı kadar
         halka.scale.setScalar(rr); disk.scale.setScalar(rr);
         halka.material.opacity = 0.85 * (1 - t); disk.material.opacity = 0.14 * (1 - t);
       }).then(() => { grup.remove(halka, disk); });
+    }
+
+    // Arkadan gelen ezici uzay aracı (koridor genişliğinde, önünde dönen silindirler ve kırmızı uyarı ışıkları)
+    let ezen = null, ezenGeldi = false;
+    function ezenYap() {
+      const g = new THREE.Group(), gen = M.W * 2 + 0.6;
+      const govde = new THREE.Mesh(new THREE.BoxGeometry(gen, 1.6, 3.2), new THREE.MeshStandardMaterial({ color: 0xc9d0e6, metalness: 0.4, roughness: 0.35, emissive: 0x3a4466, emissiveIntensity: 0.5 }));
+      govde.position.set(0, 1.4, 1.9); govde.castShadow = true;
+      const kubbe = new THREE.Mesh(new THREE.SphereGeometry(1.1, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x7dff4a, emissive: 0x2a8a10, emissiveIntensity: 0.8, transparent: true, opacity: 0.85 }));
+      kubbe.position.set(0, 2.2, 2);
+      const serit = new THREE.Mesh(new THREE.BoxGeometry(gen + 0.02, 0.18, 0.05), new THREE.MeshBasicMaterial({ color: 0xff2030 }));
+      serit.position.set(0, 1.6, 0.28);
+      const silindir = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, gen - 0.1, 20), new THREE.MeshStandardMaterial({ color: 0x55586a, metalness: 0.8, roughness: 0.3, emissive: 0xff3010, emissiveIntensity: 0.25 }));
+      silindir.rotation.z = Math.PI / 2; silindir.position.set(0, 0.45, 0.45);
+      const isik = new THREE.PointLight(0xff2030, 4, 7, 1.5); isik.position.set(0, 1.2, -0.5);
+      const uyari = new THREE.Mesh(new THREE.PlaneGeometry(M.W * 2, 1.2), new THREE.MeshBasicMaterial({ color: 0xff2030, transparent: true, opacity: 0.35, depthWrite: false }));
+      uyari.rotation.x = -Math.PI / 2; uyari.position.set(0, 0.02, -0.6);
+      g.add(govde, kubbe, serit, silindir, isik, uyari);
+      g.userData = { silindir, isik, uyari };
+      return g;
     }
 
     function dumanCikar(o) {
@@ -198,6 +221,14 @@
         Cekirdek.patlama(o.x, 0.5, o.z, o.renk);
         R[o.id].goster(false);
         if (o.id === b.benId) { b.hud.bilgi('⏰ Süre bitti, patladın!', true); b.hud.perde('flas'); }
+        hudOyuncular();
+      } else if (ol.tip === 'ezildi') {
+        const o = d.oyuncular.find(p => p.id === ol.id);
+        Cekirdek.patlama(o.x, 0.5, o.z, o.renk);
+        Ses.patlama();
+        R[o.id].goster(false);
+        b.hud.bilgi(o.id === b.benId ? '🛸 Uzay aracı seni ezdi!' : `🛸 ${o.ad} ezildi!`, o.id === b.benId);
+        if (o.id === b.benId) b.hud.perde('flas');
         hudOyuncular();
       } else if (ol.tip === 'it') { Ses.isabet(); }
       else if (ol.tip === 'tara') taramaGoster(ol);
@@ -245,7 +276,7 @@
         m.ol.forEach(ol => {
           if (ol.tip === 'mayin') { d.mayinlar[ol.m].durum = 'patladi'; const o = d.oyuncular.find(p => p.id === ol.id); if (ol.sonuc === 'duman') o.hasarli = true; else o.durum = 'patladi'; }
           if (ol.tip === 'vardi') { const o = d.oyuncular.find(p => p.id === ol.id); o.durum = 'vardi'; o.sira = ol.sira; }
-          if (ol.tip === 'sureBitti') d.oyuncular.find(p => p.id === ol.id).durum = 'patladi';
+          if (ol.tip === 'sureBitti' || ol.tip === 'ezildi') d.oyuncular.find(p => p.id === ol.id).durum = 'patladi';
           if (ol.tip === 'it' && ol.id === b.benId) { ben.vx += ol.vx; ben.vz += ol.vz; }
           if (ol.tip === 'bitti') { d.bitti = true; d.kazanan = ol.kazanan; }
           olayIsle(ol);
@@ -316,6 +347,19 @@
         dugme.hidden = ben.durum !== 'oynuyor';
       }
       if (Math.floor(t * 3) !== Math.floor((t - dt) * 3)) hudOyuncular();
+
+      // Uzay aracı: sürenin yarısında arkadan gelir
+      const ez = d.bitti ? null : M.ezenZ(d);
+      if (ez !== null && ezen) {
+        if (!ezenGeldi) { ezenGeldi = true; Ses.uyari(); if (!bittiMi) b.hud.bilgi('🛸 Arkadan uzay aracı geliyor! Kaç!', true); }
+        ezen.visible = true;
+        ezen.position.z += (ez - ezen.position.z) * Math.min(1, dt * 10);
+        if (ezen.position.z > ez + 3) ezen.position.z = ez + 3;
+        ezen.userData.silindir.rotation.x -= dt * 6;
+        const yan = Math.floor(t * 4) % 2;
+        ezen.userData.isik.intensity = yan ? 5 : 1.5;
+        ezen.userData.uyari.material.opacity = yan ? 0.45 : 0.15;
+      }
 
       // Mayınlar: taradıklarım görünür ve yanıp söner
       d.mayinlar.forEach((m, i) => {

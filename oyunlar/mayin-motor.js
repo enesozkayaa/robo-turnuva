@@ -5,6 +5,8 @@
 // başka oyuncular da senin taramanı görür; tarama bitince mayınlar yeniden gizlenir.
 // İlk mayına basınca duman çıkar, sürünerek yavaş gidersin; ikincisinde patlarsın.
 // Koridorun sonundaki uzay üssüne ilk varan kazanır. Süre biterse varamayan patlar, puan alamaz.
+// Sürenin yarısı dolunca arkadan yavaşça bir uzay aracı gelir: yetiştiği robotu ezer (süre bitince üsse varır).
+// Mayınlar oyun başında bir kere kurulur, sonradan eklenmez/yer değiştirmez; patlayan mayın kalkar.
 // Birbirini itme var. Sabit adımlı simülasyon: adim(d, dt, girdiler).
 // =============================================================
 
@@ -16,6 +18,14 @@ const MayinMotor = (() => {
   const TARAMA_R = 2.8, TARAMA_ARA = 5;
   const BASLANGIC = 3, BITIS_Z = -L;      // başlangıç çizgisi z=0, üs z=-L
   const BAS_X = [-1.8, -0.6, 0.6, 1.8];
+  const EZ_BAS = 2.5;                       // uzay aracının ön yüzü buradan başlar (başlangıç çizgisinin arkası)
+  // Uzay aracının ön yüzünün z'si (sürenin yarısından önce yok: null). Süreden hesaplanır → herkeste aynı.
+  function ezenZ(d) {
+    const yari = d.sure / 2;
+    if (d.t < 0 || d.kalan > yari) return null;
+    const p = Math.min(1, (yari - d.kalan) / yari);
+    return EZ_BAS + p * (BITIS_Z + 0.6 - EZ_BAS);
+  }
 
   function tohumlu(t) {
     return () => { t |= 0; t = (t + 0x6D2B79F5) | 0; let r = Math.imul(t ^ (t >>> 15), 1 | t); r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r; return ((r ^ (r >>> 14)) >>> 0) / 4294967296; };
@@ -56,7 +66,7 @@ const MayinMotor = (() => {
     if (Math.hypot(o.x - ex, o.z - ez) > 0.002) o.a = Math.atan2(o.z - ez, o.x - ex);
   }
   // Tarama: o noktanın etrafındaki mayınlar
-  const taramaSonucu = (d, x, z) => d.mayinlar.filter(m => m.durum === 'gizli' && Math.hypot(m.x - x, m.z - z) <= TARAMA_R).map(m => m.id);
+  const taramaSonucu = (d, x, z) => d.mayinlar.filter(m => m.durum === 'gizli' && Math.hypot(m.x - x, m.z - z) <= TARAMA_R + MAYIN_R).map(m => m.id);
 
   function bitisKontrol(d, olaylar) {
     if (oynayan(d).length) return;
@@ -125,6 +135,13 @@ const MayinMotor = (() => {
         olaylar.push({ tip: 'mayin', id: o.id, m: m.id, sonuc: 'patladi' });
       }
     });
+    // Arkadan gelen uzay aracı: yetiştiğini ezer
+    const ez = ezenZ(d);
+    if (ez !== null) yasayan.forEach(o => {
+      if (o.durum !== 'oynuyor' || o.z < ez - ROBOT_R) return;
+      o.durum = 'patladi';
+      olaylar.push({ tip: 'ezildi', id: o.id });
+    });
     // Üsse varış
     yasayan.forEach(o => {
       if (o.durum !== 'oynuyor' || o.z > BITIS_Z + 0.6) return;
@@ -157,7 +174,8 @@ const MayinMotor = (() => {
     const kalanYol = o.z - BITIS_Z;
     const yetisir = d.kalan > kalanYol / (o.hasarli ? HASARLI_HIZ : HIZ) + 4;
     const disinda = o.z < hafiza.taramaZ - TARAMA_R * 0.8;
-    if (disinda && yetisir && hafiza.cesaret < 0.4) return { tara };
+    const ez = ezenZ(d), kovalaniyor = ez !== null && o.z > ez - 5;   // uzay aracı yakınsa beklemez, kaçar
+    if (disinda && yetisir && hafiza.cesaret < 0.4 && !kovalaniyor) return { tara };
     // Önündeki bilinen mayınlardan uzak bir şerit seç
     const ileri = d.mayinlar.filter(m => hafiza.bilinen.has(m.id) && m.durum === 'gizli' && m.z < o.z + 0.3 && m.z > o.z - 2.6);
     let enIyi = o.x, enIyiPuan = -Infinity;
@@ -169,10 +187,10 @@ const MayinMotor = (() => {
     const dx = enIyi - o.x;
     // Hemen önünde bilinen mayın varken yana kayana kadar yavaşla
     const tamOnunde = ileri.some(m => Math.abs(m.x - o.x) < AYAK + MAYIN_R + 0.1 && m.z < o.z && m.z > o.z - 0.9);
-    return { hx: Math.max(-1, Math.min(1, dx * 2.5)), hz: tamOnunde ? -0.05 : -1, tara };
+    return { hx: Math.max(-1, Math.min(1, dx * 2.5)), hz: tamOnunde && !kovalaniyor ? -0.05 : -1, tara };
   }
 
-  return { L, W, ROBOT_R, AYAK, MAYIN_R, HIZ, HASARLI_HIZ, TARAMA_R, TARAMA_ARA, BASLANGIC, BITIS_Z, mayinlarYap, yeni, adim, yuru, taramaSonucu, botGirdi, oynayan };
+  return { L, W, ROBOT_R, AYAK, MAYIN_R, HIZ, HASARLI_HIZ, TARAMA_R, TARAMA_ARA, BASLANGIC, BITIS_Z, EZ_BAS, ezenZ, mayinlarYap, yeni, adim, yuru, taramaSonucu, botGirdi, oynayan };
 })();
 
 if (typeof module !== 'undefined') module.exports = MayinMotor;
